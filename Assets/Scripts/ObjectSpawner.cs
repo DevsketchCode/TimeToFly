@@ -9,6 +9,9 @@ public class ObjectSpawner : MonoBehaviour
     private float heightRange = 0.45f;
 
     [SerializeField]
+    private float distanceRange = 0.45f;
+
+    [SerializeField]
     private GameObject _gameObject; // This should be your PipePrefab
 
     [SerializeField]
@@ -39,7 +42,7 @@ public class ObjectSpawner : MonoBehaviour
 
     private void SpawnObject()
     {
-        Vector3 spawnPosition = transform.position + new Vector3(0, Random.Range(-heightRange, heightRange));
+        Vector3 spawnPosition = transform.position + new Vector3(Random.Range(0, distanceRange), Random.Range(-heightRange, heightRange));
         spawnedObjectInstance = Instantiate(_gameObject, spawnPosition, Quaternion.identity);
 
         // Add the SelfDestruct script to the spawned object
