@@ -6,6 +6,9 @@ public class GameManager : MonoBehaviour
     public static GameManager instance;
 
     [SerializeField]
+    private GameObject gameMenuCanvas;
+
+    [SerializeField]
     private GameObject gameOverCanvas;
 
     private void Awake()
@@ -14,12 +17,20 @@ public class GameManager : MonoBehaviour
         {
             instance = this;
         }
+        gameMenuCanvas.SetActive(true);
+        gameOverCanvas.SetActive(false);
+    }
 
+    public void StartGame()
+    {
         Time.timeScale = 1f;
+        gameMenuCanvas.SetActive(false);
+        gameOverCanvas.SetActive(false);
     }
 
     public void GameOver()
     {
+        gameMenuCanvas.SetActive(true);
         gameOverCanvas.SetActive(true);
         Time.timeScale = 0f;
     }
@@ -34,6 +45,7 @@ public class GameManager : MonoBehaviour
     public void Pause()
     {
         Time.timeScale = 0f;
-        gameOverCanvas.SetActive(true);
+        gameMenuCanvas.SetActive(true);
+        gameOverCanvas.SetActive(false);
     }
 }
