@@ -17,8 +17,6 @@ public class GameManager : MonoBehaviour
         {
             instance = this;
         }
-        gameMenuCanvas.SetActive(true);
-        gameOverCanvas.SetActive(false);
     }
 
     public void StartGame()
@@ -38,6 +36,7 @@ public class GameManager : MonoBehaviour
     public void RestartGame()
     {
         Time.timeScale = 1f;
+        gameMenuCanvas.SetActive(false);
         gameOverCanvas.SetActive(false);
         SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex);
     }

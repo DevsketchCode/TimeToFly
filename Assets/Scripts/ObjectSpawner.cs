@@ -1,25 +1,30 @@
 using UnityEngine;
+using Random = UnityEngine.Random;
 
 public class ObjectSpawner : MonoBehaviour
 {
     [SerializeField]
-    private float maxTime = 1.5f;
+    private float maxTime = 2f;
 
     [SerializeField]
     private float heightRange = 0.45f;
 
     [SerializeField]
-    private float distanceRange = 0.45f;
-
+    private float minHorizontalDistance = 1f; // Minimum horizontal distance between spawns
     [SerializeField]
-    private GameObject _gameObject; // This should be your PipePrefab
+    private float maxHorizontalDistance = 1.5f; // Maximum horizontal distance between spawns
+
+    [Tooltip("Array of prefabs to spawn randomly.")]
+    [SerializeField]
+    private GameObject[] prefabsToSpawn;
 
     [SerializeField]
     public bool Pause = false;
 
     private float timer;
-
-    private GameObject spawnedObjectInstance; // Keep track of the instantiated GameObject
+    public GameObject lastSpawnObject = null;
+    public Vector3 lastSpawnPosition = new Vector3(0.5f,0); // Added to store the last spawn position
+    private GameObject spawnedObjectInstance; // Declared at class level
 
     private void Start()
     {
@@ -28,7 +33,6 @@ public class ObjectSpawner : MonoBehaviour
 
     private void Update()
     {
-        // Only update the timer and potentially spawn if not paused
         if (!Pause)
         {
             timer += Time.deltaTime;
@@ -42,19 +46,63 @@ public class ObjectSpawner : MonoBehaviour
 
     private void SpawnObject()
     {
-        Vector3 spawnPosition = transform.position + new Vector3(Random.Range(0, distanceRange), Random.Range(-heightRange, heightRange));
-        spawnedObjectInstance = Instantiate(_gameObject, spawnPosition, Quaternion.identity);
+        Debug.Log("Spawning object...");
+        if (prefabsToSpawn != null && prefabsToSpawn.Length > 0)
+        {
+            int randomIndex = Random.Range(0, prefabsToSpawn.Length);
+            GameObject prefabToInstantiate = prefabsToSpawn[randomIndex];
+            Debug.Log("Prefab to Instantiate: " + prefabToInstantiate.name);
+            Vector3 spawnPosition;
+            
+            bool validPosition = false;
+            int attempts = 0;
+            int maxAttempts = 20;
 
-        // Add the SelfDestruct script to the spawned object
-        SelfDestruct selfDestruct = spawnedObjectInstance.AddComponent<SelfDestruct>();
-        selfDestruct.isPaused = Pause; // Initialize the paused state based on the spawner's pause state
+            do
+            {
+                float randomHorizontalOffset = Random.Range(minHorizontalDistance, maxHorizontalDistance);
+                float randomVerticalOffset = Random.Range(-heightRange, heightRange);
+                
+                spawnPosition = new Vector3(lastSpawnPosition.x,0) + new Vector3(randomHorizontalOffset, randomVerticalOffset, 0f);
+                Debug.Log($"Spawn Position: {spawnPosition}");
+                if (lastSpawnObject != null)
+                {
+                    if (Mathf.Abs(spawnPosition.x - lastSpawnPosition.x) >= minHorizontalDistance)
+                    {
+                        validPosition = true;
+                    }
+                }
+                else
+                {
+                    validPosition = true;
+                }
+
+                attempts++;
+                if (attempts > maxAttempts)
+                {
+                    Debug.LogWarning("Could not find a valid spawn position after " + maxAttempts + " attempts on " + gameObject.name + ". Consider adjusting distance ranges.");
+                    validPosition = true;
+                }
+
+            } while (!validPosition);
+
+            spawnedObjectInstance = Instantiate(prefabToInstantiate, spawnPosition, Quaternion.identity); // Assigned to the class-level variable
+            lastSpawnObject = spawnedObjectInstance;
+            Debug.Log("Last Spawned Object: " + lastSpawnObject.name);
+            lastSpawnPosition = lastSpawnObject != null ? lastSpawnObject.transform.position : Vector3.zero;
+
+            SelfDestruct selfDestruct = spawnedObjectInstance.AddComponent<SelfDestruct>();
+            selfDestruct.isPaused = Pause;
+        }
+        else
+        {
+            Debug.LogWarning("No prefabs assigned to the ObjectSpawner on " + gameObject.name + ".");
+        }
     }
 
-    // Public method to pause the spawner
     public void PauseSpawner(bool pause)
     {
         Pause = pause;
-        // Find the SelfDestruct component on the currently spawned object and update its paused state
         if (spawnedObjectInstance != null)
         {
             SelfDestruct selfDestruct = spawnedObjectInstance.GetComponent<SelfDestruct>();
@@ -65,15 +113,6 @@ public class ObjectSpawner : MonoBehaviour
         }
     }
 
-    // Public method to cancel any immediate destroy (no longer directly managing destroy here)
-    public void CancelDelayedDestroy()
-    {
-        // Not directly used in this approach.
-    }
-
-    // Public method to restart the destroy timer (not directly managing destroy here)
-    public void RestartDestroyTimer()
-    {
-        // Not directly used in this approach.
-    }
+    public void CancelDelayedDestroy() { }
+    public void RestartDestroyTimer() { }
 }

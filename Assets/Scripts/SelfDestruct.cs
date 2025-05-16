@@ -3,12 +3,12 @@ using UnityEngine;
 public class SelfDestruct : MonoBehaviour
 {
     [SerializeField]
-    private float lifeTime = 8f;
+    private float lifeTime = 10f;
     public bool isPaused = false;
 
     private void Update()
     {
-        Debug.Log($"Object: {gameObject.name}, Paused: {isPaused}, LifeTime: {lifeTime}");
+        //Debug.Log($"Object: {gameObject.name}, Paused: {isPaused}, LifeTime: {lifeTime}");
         if (!isPaused)
         {
             lifeTime -= Time.deltaTime;
