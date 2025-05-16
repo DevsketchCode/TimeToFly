@@ -7,6 +7,8 @@ TagManager:
   - DangerousObstacle
   - Obstacle
   - Proceed
+  - SpawnBarrier
+  - SelfDestruct
   layers:
   - Default
   - TransparentFX

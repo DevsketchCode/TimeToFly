@@ -113,7 +113,7 @@ public class FlyBehavior : MonoBehaviour
             if (obj.TryGetComponent<ObjectSpawner>(out var spawner))
             {
                 spawner.Pause = true;
-                spawner.CancelDelayedDestroy();
+                //spawner.CancelDelayedDestroy();
             }
 
             // Pause MoveObject

@@ -3,7 +3,7 @@ using UnityEngine;
 public class SelfDestruct : MonoBehaviour
 {
     [SerializeField]
-    private float lifeTime = 10f;
+    public float lifeTime = 15f;
     public bool isPaused = false;
 
     private void Update()
@@ -28,5 +28,10 @@ public class SelfDestruct : MonoBehaviour
     public bool IsPaused()
     {
         return isPaused;
+    }
+
+    public void SetLifeTime(float newLifeTime)
+    {
+        lifeTime = newLifeTime;
     }
 }
