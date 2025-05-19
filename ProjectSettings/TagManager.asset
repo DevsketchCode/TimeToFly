@@ -9,6 +9,8 @@ TagManager:
   - Proceed
   - SpawnBarrier
   - SelfDestruct
+  - ObstacleNoPause
+  - LeftBounceCollider
   layers:
   - Default
   - TransparentFX
@@ -16,8 +18,8 @@ TagManager:
   - 
   - Water
   - UI
-  - 
-  - 
+  - Obstacles
+  - DangerousObstacles
   - 
   - 
   - 

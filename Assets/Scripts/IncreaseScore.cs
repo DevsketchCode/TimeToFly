@@ -7,6 +7,7 @@ public class IncreaseScore : MonoBehaviour
         if (collision.CompareTag("Player"))
         {
             Score.instance.UpdateScore();
+            Destroy(gameObject);
         }
     }
 }

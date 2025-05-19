@@ -15,6 +15,9 @@ public class ObjectSpawner : MonoBehaviour
 
     [Header("Object Spawn Settings")]
     [SerializeField]
+    public GameObject objectSpawner;
+
+    [SerializeField]
     private float heightRange = 0.45f; // Range for random vertical offset when spawning
     [SerializeField]
     private float selfDestructTime = 15f; // Time before the spawned object self-destructs
@@ -25,9 +28,19 @@ public class ObjectSpawner : MonoBehaviour
 
     private float spawnTimer;
     private GameObject spawnedObjectInstance;
+    private LevelManager levelManager;
 
     private void Start()
     {
+        // Find the LevelManager instance
+        levelManager = FindObjectOfType<LevelManager>();
+        if (levelManager == null)
+        {
+            Debug.LogError("LevelManager not found in the scene!");
+            enabled = false;
+        }
+
+        SpawnObject(); // Spawn an object immediately at the start
         ResetSpawnTimer(); // Set a random initial spawn delay
     }
 
@@ -56,16 +69,28 @@ public class ObjectSpawner : MonoBehaviour
             float randomVerticalOffset = Random.Range(-heightRange, heightRange);
 
             // Spawn at the spawner's position with the random vertical offset
-            Vector3 spawnPosition = new Vector3(this.transform.position.x,0f,0f) + new Vector3(0f, randomVerticalOffset, 0f);
+            Vector3 spawnPosition = new Vector3(objectSpawner.transform.position.x, objectSpawner.transform.position.y, 0f) + new Vector3(0f, randomVerticalOffset, 0f);
             spawnedObjectInstance = Instantiate(prefabToInstantiate, spawnPosition, Quaternion.identity);
 
             Debug.Log("Spawned: " + prefabToInstantiate.name + " at " + spawnPosition + " at time: " + Time.time);
 
-            // Get the SelfDestruct component and it will handle its own lifetime
-            SelfDestruct selfDestruct = spawnedObjectInstance.GetComponent<SelfDestruct>();
-            // The SelfDestruct script's Update() will automatically start the countdown
+            // Get the MoveObject component and set its speed
+            MoveObject moveObject = spawnedObjectInstance.GetComponent<MoveObject>();
+            if (moveObject != null && levelManager != null)
+            {
+                moveObject.SetSpeed(levelManager.objectSpeed);
+            }
+            else if (moveObject == null)
+            {
+                Debug.LogWarning("Spawned object " + prefabToInstantiate.name + " does not have a MoveObject script.");
+            }
+            else if (levelManager == null)
+            {
+                Debug.LogError("LevelManager is null in ObjectSpawner, cannot set object speed.");
+            }
 
-            // If you need to override the default lifetime from the prefab, you can do it here:
+            // Handle SelfDestruct
+            SelfDestruct selfDestruct = spawnedObjectInstance.GetComponent<SelfDestruct>();
             if (selfDestruct != null && selfDestructTime > 0)
             {
                 selfDestruct.SetLifeTime(selfDestructTime);
@@ -92,6 +117,17 @@ public class ObjectSpawner : MonoBehaviour
             {
                 selfDestruct.SetPaused(pause);
             }
+        }
+    }
+
+    // New function to add the bounce delay to the spawn timer
+    public void AddBounceDelay(float delay)
+    {
+        spawnTimer += delay;
+        // Ensure the timer doesn't go negative, although it shouldn't in normal operation
+        if (spawnTimer < 0f)
+        {
+            spawnTimer = 0f;
         }
     }
 

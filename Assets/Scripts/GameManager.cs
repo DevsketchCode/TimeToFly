@@ -41,6 +41,14 @@ public class GameManager : MonoBehaviour
         SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex);
     }
 
+    public void QuitGame()
+    {
+        Time.timeScale = 1f;
+        gameMenuCanvas.SetActive(false);
+        gameOverCanvas.SetActive(false);
+        Application.Quit();
+    }
+
     public void Pause()
     {
         Time.timeScale = 0f;
