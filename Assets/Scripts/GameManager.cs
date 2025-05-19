@@ -28,6 +28,7 @@ public class GameManager : MonoBehaviour
 
     public void GameOver()
     {
+        UIManager.instance.StopTimer(); // Call StopTimer on game over
         gameMenuCanvas.SetActive(true);
         gameOverCanvas.SetActive(true);
         Time.timeScale = 0f;

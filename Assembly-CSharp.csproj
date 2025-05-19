@@ -64,7 +64,7 @@
     <Compile Include="Assets\Scripts\IncreaseScore.cs" />
     <Compile Include="Assets\Scripts\FlyBehavior.cs" />
     <Compile Include="Assets\Scripts\BackgroundScroller.cs" />
-    <Compile Include="Assets\Scripts\Score.cs" />
+    <Compile Include="Assets\Scripts\UIManager.cs" />
     <Compile Include="Assets\Scripts\ObjectSpawner.cs" />
     <Compile Include="Assets\Scripts\Proceed.cs" />
     <Compile Include="Assets\Scripts\CameraOrientationZoom.cs" />

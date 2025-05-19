@@ -6,7 +6,7 @@ public class IncreaseScore : MonoBehaviour
     {
         if (collision.CompareTag("Player"))
         {
-            Score.instance.UpdateScore();
+            UIManager.instance.UpdateScore();
             Destroy(gameObject);
         }
     }

@@ -27,6 +27,7 @@ public class FlyBehavior : MonoBehaviour
     public string playerTag = "Player";
     public InputActionReference jumpActionReference;
     private InputAction jumpAction;
+    private bool hasMoved = false;
     public bool isPaused = false;
     public bool isGrounded = false;
     private bool isCollidingWithObstacle = false; // Track if currently colliding with a non-ground obstacle
@@ -58,6 +59,11 @@ public class FlyBehavior : MonoBehaviour
         if (!isPaused && jumpAction.WasPerformedThisFrame())
         {
             rb.AddForce(Vector2.up * jumpForce, ForceMode2D.Impulse);
+            if (!hasMoved)
+            {
+                hasMoved = true;
+                UIManager.instance.StartTimer(); // Call StartTimer when first jump occurs
+            }
         }
         else if (isPaused && jumpAction.WasPerformedThisFrame())
         {
