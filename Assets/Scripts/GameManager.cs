@@ -19,6 +19,21 @@ public class GameManager : MonoBehaviour
         }
     }
 
+    // Public methods that can be directly linked to the OnClick() event of your buttons
+
+    public void LoadScene(string sceneName)
+    {
+        if (!string.IsNullOrEmpty(sceneName))
+        {
+            SceneManager.LoadScene(sceneName); // Use the fully qualified name to avoid conflict
+            Debug.Log($"Loading scene: {sceneName}");
+        }
+        else
+        {
+            Debug.LogError("Scene name to load is empty or null.");
+        }
+    }
+
     public void StartGame()
     {
         Time.timeScale = 1f;
@@ -42,18 +57,16 @@ public class GameManager : MonoBehaviour
         SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex);
     }
 
-    public void QuitGame()
-    {
-        Time.timeScale = 1f;
-        gameMenuCanvas.SetActive(false);
-        gameOverCanvas.SetActive(false);
-        Application.Quit();
-    }
-
     public void Pause()
     {
         Time.timeScale = 0f;
         gameMenuCanvas.SetActive(true);
         gameOverCanvas.SetActive(false);
+    }
+
+    public void QuitGame()
+    {
+        Debug.Log("Quitting application...");
+        Application.Quit();
     }
 }
