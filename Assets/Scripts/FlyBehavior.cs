@@ -44,10 +44,17 @@ public class FlyBehavior : MonoBehaviour
     public bool isOnGround = false;
     public bool hasMoved = false;
 
+    // --- Flapping Sound Settings (These can remain, still useful for animation speed) ---
+    [Header("Audio Settings")]
+    [Range(0.5f, 2.0f)] // Pitch usually goes from 0.5 to 2.0 (half speed to double speed)
+    [SerializeField] private float flappingSoundPitch = 1.0f; // Control the "speed" of the flapping sound
+    // ------------------------------------
+
     private InputAction jumpAction;
     private Rigidbody2D rb;
     private Animator animator;
-    
+    private Audio_Player playerAudio; // Reference to the PlayerAudio script (now Audio_Player)
+
     private bool isCollidingWithObstacle = false; // Track if currently colliding with a non-ground obstacle
     private bool isBouncing = false; // Flag to indicate if the bounce coroutine is running
     private float flyingTimer; // Timer for the coyote time
@@ -65,7 +72,6 @@ public class FlyBehavior : MonoBehaviour
             Debug.LogError("Animator not found in the player object!");
         }
 
-        // Find the LevelManager instance
         levelManager = FindObjectOfType<LevelManager>();
         if (levelManager == null)
         {
@@ -73,12 +79,19 @@ public class FlyBehavior : MonoBehaviour
             enabled = false;
         }
 
-        flyingTimer = 0f; // Initialize the timer
+        flyingTimer = 0f;
+
+        playerAudio = GetComponent<Audio_Player>();
+        if (playerAudio == null)
+        {
+            Debug.LogWarning("Audio_Player component not found on player object!");
+        }
     }
 
     private void OnDestroy()
     {
         jumpAction.Disable();
+        // No need to stop flapping sound specifically here, as it's one-shot per input.
     }
 
     private void Update()
@@ -86,24 +99,40 @@ public class FlyBehavior : MonoBehaviour
         if (!isPaused && jumpAction.WasPerformedThisFrame())
         {
             rb.AddForce(Vector2.up * jumpForce, ForceMode2D.Impulse);
-            // When jumping, immediately set flying to true and reset timer
             currentlyFlying = true;
             flyingTimer = flyingCoyoteTime;
+
+            // Play the flapping sound when the jump input is pressed
+            if (playerAudio != null)
+            {
+                playerAudio.PlayFlappingSound(flappingSoundPitch); // Pass the pitch
+            }
         }
         else if (isPaused && jumpAction.WasPerformedThisFrame())
         {
-            rb.linearVelocity = Vector2.zero; // Directly set velocity to zero
+            rb.linearVelocity = Vector2.zero;
             rb.AddForce(Vector2.up * pausedJumpForce, ForceMode2D.Impulse);
             if (!hasMoved)
             {
-                // When jumping, immediately set flying to true and reset timer
                 animator.SetBool("isShocked", true);
-                // When leaving ground, immediately set flying to true (since you're jumping/falling)
                 currentlyFlying = true;
                 flyingTimer = flyingCoyoteTime;
-
                 hasMoved = true;
-                UIManager.instance.StartTimer(); // Call StartTimer when first jump occurs
+                UIManager.instance.StartTimer();
+
+                // Play flapping sound even when paused jump occurs
+                if (playerAudio != null)
+                {
+                    playerAudio.PlayFlappingSound(flappingSoundPitch); // Pass the pitch
+                }
+            }
+            else
+            {
+                // Play flapping sound even when paused jump occurs
+                if (playerAudio != null)
+                {
+                    playerAudio.PlayFlappingSound(flappingSoundPitch); // Pass the pitch
+                }
             }
         }
     }
@@ -111,16 +140,24 @@ public class FlyBehavior : MonoBehaviour
     private void FixedUpdate()
     {
         transform.rotation = Quaternion.Euler(0, 0, rb.linearVelocity.y * rotationSpeed);
-        HandleAnimation(); // Call HandleAnimation in FixedUpdate for physics-based consistency
+        HandleAnimation();
+        // REMOVE HandleFlappingSound(); as it's no longer needed for continuous sound
     }
 
-    private void OnTriggerEnter2D(Collider2D other) // Changed from OnCollisionEnter2D to OnTriggerEnter2D and parameter type
+    private void OnTriggerEnter2D(Collider2D other)
     {
         Debug.Log("Trigger entered by: " + other.gameObject.name + " Tag: " + other.gameObject.tag);
         if (other.gameObject.CompareTag("DangerousObstacle"))
         {
             isCollidingWithObstacle = true;
             PauseLevelElements();
+
+            if (playerAudio != null)
+            {
+                playerAudio.PlayCollisionSound();
+                // No need to explicitly stop flapping sound here, as it's one-shot.
+            }
+
             GameManager.instance.GameOver();
         }
         else if (other.gameObject.CompareTag("Obstacle") || other.gameObject.CompareTag("ObstacleNoPause"))
@@ -128,8 +165,10 @@ public class FlyBehavior : MonoBehaviour
             if (other.gameObject.name == "Ground")
             {
                 isOnGround = true;
-                currentlyFlying = false; // Ensure flying is false on ground
-                flyingTimer = 0f; // Reset timer on ground
+                currentlyFlying = false;
+                flyingTimer = 0f;
+
+                // No need to explicitly stop flapping sound here.
 
                 if (!isBouncing)
                 {
@@ -138,7 +177,6 @@ public class FlyBehavior : MonoBehaviour
                 return;
             }
 
-            // Handle bounce trigger
             if (other.gameObject.layer == LayerMask.NameToLayer("Obstacles") && other.gameObject.CompareTag("LeftBounceCollider"))
             {
                 Debug.Log("Bouncing off LeftBounceCollider (Trigger): Tag:" + other.gameObject.tag);
@@ -149,10 +187,9 @@ public class FlyBehavior : MonoBehaviour
 
             if (!other.gameObject.CompareTag("ObstacleNoPause"))
             {
-                // Consider if non-bounce obstacle triggers should pause.
-                // If so, keep this. If not, remove it.
                 isCollidingWithObstacle = true;
                 PauseLevelElements();
+                // No need to explicitly stop flapping sound here.
             }
         }
         else if (other.gameObject.CompareTag("Proceed"))
@@ -162,7 +199,6 @@ public class FlyBehavior : MonoBehaviour
         }
     }
 
-    // You might still need OnCollisionEnter2D for the ground and potentially other non-trigger obstacles
     private void OnCollisionEnter2D(Collision2D collision)
     {
         Debug.Log("Collision with: " + collision.gameObject.name + " Tag: " + collision.gameObject.tag);
@@ -171,6 +207,13 @@ public class FlyBehavior : MonoBehaviour
         {
             isCollidingWithObstacle = true;
             PauseLevelElements();
+
+            if (playerAudio != null)
+            {
+                playerAudio.PlayCollisionSound();
+                // No need to explicitly stop flapping sound here.
+            }
+
             GameManager.instance.GameOver();
         }
         else if (collision.gameObject.CompareTag("Obstacle") || collision.gameObject.CompareTag("ObstacleNoPause"))
@@ -178,8 +221,10 @@ public class FlyBehavior : MonoBehaviour
             if (collision.gameObject.name == "Ground")
             {
                 isOnGround = true;
-                currentlyFlying = false; // Ensure flying is false on ground
-                flyingTimer = 0f; // Reset timer on ground
+                currentlyFlying = false;
+                flyingTimer = 0f;
+
+                // No need to explicitly stop flapping sound here.
 
                 if (!isBouncing)
                 {
@@ -187,10 +232,11 @@ public class FlyBehavior : MonoBehaviour
                 }
                 return;
             }
-            if (!collision.gameObject.CompareTag("LeftBounceCollider")) // Only pause if it's a regular obstacle, not a bounce trigger
+            if (!collision.gameObject.CompareTag("LeftBounceCollider"))
             {
                 isCollidingWithObstacle = true;
                 PauseLevelElements();
+                // No need to explicitly stop flapping sound here.
             }
         }
     }
@@ -202,11 +248,9 @@ public class FlyBehavior : MonoBehaviour
             if (collision.gameObject.name == "Ground")
             {
                 isOnGround = false;
-                // When leaving ground, immediately set flying to true (since you're jumping/falling)
-                currentlyFlying = true;
+                currentlyFlying = true; // Player is now in air (jumping/falling)
                 flyingTimer = flyingCoyoteTime;
 
-                // Only unpause if the game was paused due to ground contact and not bouncing
                 if (isPaused && !isBouncing && !isCollidingWithObstacle)
                 {
                     UnpauseLevelElements();
@@ -214,7 +258,6 @@ public class FlyBehavior : MonoBehaviour
                 return;
             }
             isCollidingWithObstacle = false;
-            // Check for leaving top/bottom of other obstacles
             float playerBottom = GetComponent<Collider2D>().bounds.min.y;
             float playerTop = GetComponent<Collider2D>().bounds.max.y;
             float obstacleBottom = collision.collider.bounds.min.y;
@@ -239,8 +282,8 @@ public class FlyBehavior : MonoBehaviour
     {
         isBouncing = true;
         PauseLevelElements();
+        // No need to explicitly stop flapping sound here.
 
-        // Find all relevant moving objects and tell them to move right
         GameObject[] allObjects = FindObjectsOfType<GameObject>();
         foreach (GameObject obj in allObjects)
         {
@@ -252,7 +295,6 @@ public class FlyBehavior : MonoBehaviour
                 }
                 if (obj.TryGetComponent<MoveObject>(out var move))
                 {
-                    // No need to pass speed here, MoveObject will handle its own speed
                     move.MoveRightTemporarily(bounceDuration);
                 }
                 if (obj.TryGetComponent<ObjectSpawner>(out var spawner))
@@ -270,32 +312,30 @@ public class FlyBehavior : MonoBehaviour
 
     private void HandleAnimation()
     {
-        // Primary condition for flying: not on ground AND moving significantly
         bool isMovingVertically = Mathf.Abs(rb.linearVelocity.y) > flyingVelocityThreshold;
 
         if (isOnGround)
         {
-            currentlyFlying = false; // Definitely not flying if on the ground
-            flyingTimer = 0f; // Reset timer
+            currentlyFlying = false;
+            flyingTimer = 0f;
         }
         else // Player is in the air
         {
             if (isMovingVertically)
             {
-                currentlyFlying = true; // Actively moving, so flying
-                flyingTimer = flyingCoyoteTime; // Reset coyote timer
+                currentlyFlying = true;
+                flyingTimer = flyingCoyoteTime;
             }
             else // Not moving vertically, but in the air (at the peak)
             {
-                // Decrement coyote time
                 if (flyingTimer > 0)
                 {
-                    flyingTimer -= Time.fixedDeltaTime; // Use fixedDeltaTime since HandleAnimation is in FixedUpdate
-                    currentlyFlying = true; // Keep flying true due to coyote time
+                    flyingTimer -= Time.fixedDeltaTime;
+                    currentlyFlying = true;
                 }
                 else
                 {
-                    currentlyFlying = false; // Coyote time ran out, no significant vertical movement
+                    currentlyFlying = false;
                 }
             }
         }
@@ -303,19 +343,35 @@ public class FlyBehavior : MonoBehaviour
         animator.SetBool("isFlying", currentlyFlying);
         animator.SetBool("isOnGround", isOnGround);
 
-        // Set the animation speed based on whether the player is flying
         if (currentlyFlying)
         {
             animator.SetFloat("FlappingSpeed", flappingAnimationSpeed);
         }
         else
         {
-            // You might want to reset the speed to 1.0f when not flying,
-            // or to a specific "idle" or "grounded" animation speed.
-            // For now, let's assume default speed when not flying.
-            animator.SetFloat("FlappingSpeed", 1.0f); // Or another appropriate default speed
+            animator.SetFloat("FlappingSpeed", 1.0f);
         }
     }
+
+    // REMOVE THIS METHOD: It's no longer needed for continuous sound
+    /*
+    /// <summary>
+    /// Controls the flapping sound based on the player's flying state.
+    /// </summary>
+    private void HandleFlappingSound()
+    {
+        if (playerAudio == null) return;
+
+        if (currentlyFlying)
+        {
+            playerAudio.ToggleFlappingSound(true, flappingSoundPitch);
+        }
+        else
+        {
+            playerAudio.ToggleFlappingSound(false);
+        }
+    }
+    */
 
     public void PauseLevelElements()
     {
@@ -331,6 +387,7 @@ public class FlyBehavior : MonoBehaviour
                 if (obj.TryGetComponent<SelfDestruct>(out var selfDestruct)) selfDestruct.SetPaused(true);
             }
         }
+        // No need to explicitly stop flapping sound here, as it's one-shot.
     }
 
     public void UnpauseLevelElements()
