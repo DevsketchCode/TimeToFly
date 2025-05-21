@@ -4,6 +4,7 @@ using System.Collections; // Required for Coroutines
 
 public class FlyBehavior : MonoBehaviour
 {
+    [Header("Movement Settings")]
     [SerializeField]
     private float jumpForce = 5f;
 
@@ -19,19 +20,38 @@ public class FlyBehavior : MonoBehaviour
     [SerializeField]
     private float forwardCheckDistance = 0.5f; // Adjust as needed to check in front
 
+    [Header("Animation Settings")]
+    [SerializeField]
+    private float flyingVelocityThreshold = 0.1f; // The minimum vertical velocity to consider the player "flying"
+
+    [Range(0.25f, 5.0f)]
+    [SerializeField]
+    private float flappingAnimationSpeed = 1.0f; // Default speed for the flapping animation
+
+    [Tooltip("Time to keep 'isFlying' true after velocity is zero at peak. Set to 0.05f for a short delay.")]
+    [SerializeField]
+    private float flyingCoyoteTime = 0.05f; // Time to keep 'isFlying' true after velocity is zero at peak
+
+    [Header("Level Settings")]
     [SerializeField]
     private LayerMask obstacleLayer; // Assign the layer of your Obstacle objects in the Inspector
+    public bool isPaused = false;
 
-    private Rigidbody2D rb;
-
+    [Header("Player Settings")]
     public string playerTag = "Player";
     public InputActionReference jumpActionReference;
+    public bool currentlyFlying = false; // Track if the player is flying
+    public bool isOnGround = false;
+    public bool hasMoved = false;
+
     private InputAction jumpAction;
-    private bool hasMoved = false;
-    public bool isPaused = false;
-    public bool isGrounded = false;
+    private Rigidbody2D rb;
+    private Animator animator;
+    
     private bool isCollidingWithObstacle = false; // Track if currently colliding with a non-ground obstacle
     private bool isBouncing = false; // Flag to indicate if the bounce coroutine is running
+    private float flyingTimer; // Timer for the coyote time
+
     private LevelManager levelManager;
 
     private void Start()
@@ -39,6 +59,11 @@ public class FlyBehavior : MonoBehaviour
         rb = GetComponent<Rigidbody2D>();
         jumpAction = jumpActionReference.action;
         jumpAction.Enable();
+        animator = GetComponent<Animator>();
+        if (animator == null)
+        {
+            Debug.LogError("Animator not found in the player object!");
+        }
 
         // Find the LevelManager instance
         levelManager = FindObjectOfType<LevelManager>();
@@ -47,6 +72,8 @@ public class FlyBehavior : MonoBehaviour
             Debug.LogError("LevelManager not found in the scene!");
             enabled = false;
         }
+
+        flyingTimer = 0f; // Initialize the timer
     }
 
     private void OnDestroy()
@@ -59,22 +86,32 @@ public class FlyBehavior : MonoBehaviour
         if (!isPaused && jumpAction.WasPerformedThisFrame())
         {
             rb.AddForce(Vector2.up * jumpForce, ForceMode2D.Impulse);
-            if (!hasMoved)
-            {
-                hasMoved = true;
-                UIManager.instance.StartTimer(); // Call StartTimer when first jump occurs
-            }
+            // When jumping, immediately set flying to true and reset timer
+            currentlyFlying = true;
+            flyingTimer = flyingCoyoteTime;
         }
         else if (isPaused && jumpAction.WasPerformedThisFrame())
         {
             rb.linearVelocity = Vector2.zero; // Directly set velocity to zero
             rb.AddForce(Vector2.up * pausedJumpForce, ForceMode2D.Impulse);
+            if (!hasMoved)
+            {
+                // When jumping, immediately set flying to true and reset timer
+                animator.SetBool("isShocked", true);
+                // When leaving ground, immediately set flying to true (since you're jumping/falling)
+                currentlyFlying = true;
+                flyingTimer = flyingCoyoteTime;
+
+                hasMoved = true;
+                UIManager.instance.StartTimer(); // Call StartTimer when first jump occurs
+            }
         }
     }
 
     private void FixedUpdate()
     {
         transform.rotation = Quaternion.Euler(0, 0, rb.linearVelocity.y * rotationSpeed);
+        HandleAnimation(); // Call HandleAnimation in FixedUpdate for physics-based consistency
     }
 
     private void OnTriggerEnter2D(Collider2D other) // Changed from OnCollisionEnter2D to OnTriggerEnter2D and parameter type
@@ -82,6 +119,7 @@ public class FlyBehavior : MonoBehaviour
         Debug.Log("Trigger entered by: " + other.gameObject.name + " Tag: " + other.gameObject.tag);
         if (other.gameObject.CompareTag("DangerousObstacle"))
         {
+            isCollidingWithObstacle = true;
             PauseLevelElements();
             GameManager.instance.GameOver();
         }
@@ -89,7 +127,10 @@ public class FlyBehavior : MonoBehaviour
         {
             if (other.gameObject.name == "Ground")
             {
-                isGrounded = true;
+                isOnGround = true;
+                currentlyFlying = false; // Ensure flying is false on ground
+                flyingTimer = 0f; // Reset timer on ground
+
                 if (!isBouncing)
                 {
                     PauseLevelElements();
@@ -101,6 +142,7 @@ public class FlyBehavior : MonoBehaviour
             if (other.gameObject.layer == LayerMask.NameToLayer("Obstacles") && other.gameObject.CompareTag("LeftBounceCollider"))
             {
                 Debug.Log("Bouncing off LeftBounceCollider (Trigger): Tag:" + other.gameObject.tag);
+                isCollidingWithObstacle = true;
                 StartCoroutine(HandleObstacleCollision());
                 return;
             }
@@ -109,6 +151,7 @@ public class FlyBehavior : MonoBehaviour
             {
                 // Consider if non-bounce obstacle triggers should pause.
                 // If so, keep this. If not, remove it.
+                isCollidingWithObstacle = true;
                 PauseLevelElements();
             }
         }
@@ -123,8 +166,10 @@ public class FlyBehavior : MonoBehaviour
     private void OnCollisionEnter2D(Collision2D collision)
     {
         Debug.Log("Collision with: " + collision.gameObject.name + " Tag: " + collision.gameObject.tag);
+
         if (collision.gameObject.CompareTag("DangerousObstacle"))
         {
+            isCollidingWithObstacle = true;
             PauseLevelElements();
             GameManager.instance.GameOver();
         }
@@ -132,7 +177,10 @@ public class FlyBehavior : MonoBehaviour
         {
             if (collision.gameObject.name == "Ground")
             {
-                isGrounded = true;
+                isOnGround = true;
+                currentlyFlying = false; // Ensure flying is false on ground
+                flyingTimer = 0f; // Reset timer on ground
+
                 if (!isBouncing)
                 {
                     PauseLevelElements();
@@ -141,6 +189,7 @@ public class FlyBehavior : MonoBehaviour
             }
             if (!collision.gameObject.CompareTag("LeftBounceCollider")) // Only pause if it's a regular obstacle, not a bounce trigger
             {
+                isCollidingWithObstacle = true;
                 PauseLevelElements();
             }
         }
@@ -152,9 +201,13 @@ public class FlyBehavior : MonoBehaviour
         {
             if (collision.gameObject.name == "Ground")
             {
-                isGrounded = false;
+                isOnGround = false;
+                // When leaving ground, immediately set flying to true (since you're jumping/falling)
+                currentlyFlying = true;
+                flyingTimer = flyingCoyoteTime;
+
                 // Only unpause if the game was paused due to ground contact and not bouncing
-                if (isPaused && !isBouncing)
+                if (isPaused && !isBouncing && !isCollidingWithObstacle)
                 {
                     UnpauseLevelElements();
                 }
@@ -213,6 +266,55 @@ public class FlyBehavior : MonoBehaviour
 
         UnpauseLevelElements();
         isBouncing = false;
+    }
+
+    private void HandleAnimation()
+    {
+        // Primary condition for flying: not on ground AND moving significantly
+        bool isMovingVertically = Mathf.Abs(rb.linearVelocity.y) > flyingVelocityThreshold;
+
+        if (isOnGround)
+        {
+            currentlyFlying = false; // Definitely not flying if on the ground
+            flyingTimer = 0f; // Reset timer
+        }
+        else // Player is in the air
+        {
+            if (isMovingVertically)
+            {
+                currentlyFlying = true; // Actively moving, so flying
+                flyingTimer = flyingCoyoteTime; // Reset coyote timer
+            }
+            else // Not moving vertically, but in the air (at the peak)
+            {
+                // Decrement coyote time
+                if (flyingTimer > 0)
+                {
+                    flyingTimer -= Time.fixedDeltaTime; // Use fixedDeltaTime since HandleAnimation is in FixedUpdate
+                    currentlyFlying = true; // Keep flying true due to coyote time
+                }
+                else
+                {
+                    currentlyFlying = false; // Coyote time ran out, no significant vertical movement
+                }
+            }
+        }
+
+        animator.SetBool("isFlying", currentlyFlying);
+        animator.SetBool("isOnGround", isOnGround);
+
+        // Set the animation speed based on whether the player is flying
+        if (currentlyFlying)
+        {
+            animator.SetFloat("FlappingSpeed", flappingAnimationSpeed);
+        }
+        else
+        {
+            // You might want to reset the speed to 1.0f when not flying,
+            // or to a specific "idle" or "grounded" animation speed.
+            // For now, let's assume default speed when not flying.
+            animator.SetFloat("FlappingSpeed", 1.0f); // Or another appropriate default speed
+        }
     }
 
     public void PauseLevelElements()
