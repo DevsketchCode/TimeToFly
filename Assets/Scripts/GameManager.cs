@@ -23,6 +23,15 @@ public class GameManager : MonoBehaviour
 
     public void LoadScene(string sceneName)
     {
+        if (AudioManager.Instance != null)
+        {
+            AudioManager.Instance.StopAllAudio(); // Stop all audio before loading a new scene
+        }
+        else
+        {
+            Debug.LogWarning("AudioManager instance is null. Cannot stop audio.");
+        }
+
         if (!string.IsNullOrEmpty(sceneName))
         {
             SceneManager.LoadScene(sceneName); // Use the fully qualified name to avoid conflict
