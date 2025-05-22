@@ -1,22 +1,26 @@
 using UnityEngine;
+
 using System.Collections; // Required for Coroutines
+
+
 
 public class BackgroundScroller : MonoBehaviour
 {
     private float scrollSpeed = 0f; // Will get from LevelManager
-    [SerializeField] public bool Pause = false;
+    [SerializeField] public bool Pause = false;
 
     public Transform[] backgrounds;
     public float spriteWidth;
 
     private bool isScrollingRightTemporarily = false;
     private float currentScrollSpeed; // To store the original scroll speed
-    private LevelManager levelManager;
+    private LevelManager levelManager;
 
     void Start()
     {
-        // Get both background child objects
-        backgrounds = new Transform[2];
+        // Get both background child objects
+        backgrounds = new Transform[2];
+
         if (transform.childCount < 2)
         {
             Debug.LogError("BackgroundScroller requires exactly 2 child background objects.");
@@ -28,6 +32,7 @@ public class BackgroundScroller : MonoBehaviour
         backgrounds[1] = transform.GetChild(1);
 
         SpriteRenderer sr = backgrounds[0].GetComponent<SpriteRenderer>();
+
         if (sr == null)
         {
             Debug.LogError("Child objects must have SpriteRenderer components.");
@@ -37,8 +42,8 @@ public class BackgroundScroller : MonoBehaviour
 
         spriteWidth = sr.size.x;
 
-        // Find the LevelManager instance
-        levelManager = FindObjectOfType<LevelManager>();
+        // Find the LevelManager instance
+        levelManager = FindObjectOfType<LevelManager>();
         if (levelManager == null)
         {
             Debug.LogError("LevelManager not found in the scene!");
@@ -46,15 +51,14 @@ public class BackgroundScroller : MonoBehaviour
             return;
         }
         scrollSpeed = levelManager.backgroundSpeed; // Get background speed from LevelManager
-        currentScrollSpeed = scrollSpeed; // Store the initial speed
-    }
-
+        currentScrollSpeed = scrollSpeed; // Store the initial speed
+    }
     void Update()
     {
         if (Pause && !isScrollingRightTemporarily) return;
 
         float moveDirection = isScrollingRightTemporarily ? 1 : -1; // 1 for right, -1 for left
-        float currentSpeed = isScrollingRightTemporarily ? currentScrollSpeed : scrollSpeed;
+        float currentSpeed = isScrollingRightTemporarily ? currentScrollSpeed : scrollSpeed;
 
         foreach (Transform bg in backgrounds)
         {

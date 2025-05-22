@@ -11,6 +11,7 @@ TagManager:
   - SelfDestruct
   - ObstacleNoPause
   - LeftBounceCollider
+  - SafeZone
   layers:
   - Default
   - TransparentFX

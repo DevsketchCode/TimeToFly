@@ -1,37 +1,65 @@
 using UnityEngine;
+using System.Collections; // Required for Coroutines
 
 public class SelfDestruct : MonoBehaviour
 {
-    [SerializeField]
-    public float lifeTime = 15f;
-    public bool isPaused = false;
+    [SerializeField] private bool setSelfDestruct = true;
+    [SerializeField] private float lifeTime = 5f;
+    [SerializeField] private bool startTimerOnAwake = true;
 
-    private void Update()
+    private float currentLifeTime;
+    private bool isPaused = false;
+
+    private void Awake()
     {
-        //Debug.Log($"Object: {gameObject.name}, Paused: {isPaused}, LifeTime: {lifeTime}");
-        if (!isPaused)
+        if (setSelfDestruct)
         {
-            lifeTime -= Time.deltaTime;
-            if (lifeTime <= 0)
+            currentLifeTime = lifeTime;
+            if (startTimerOnAwake)
             {
-                Destroy(gameObject);
+                StartCoroutine(StartSelfDestructTimer());
             }
         }
     }
 
-    public void SetPaused(bool paused)
+    private IEnumerator StartSelfDestructTimer()
     {
-        isPaused = paused;
-    }
+        while (currentLifeTime > 0)
+        {
+            if (!isPaused)
+            {
+                currentLifeTime -= Time.deltaTime;
+            }
+            yield return null; // Wait for the next frame
+        }
 
-    // Public getter for the paused state if needed for debugging
-    public bool IsPaused()
-    {
-        return isPaused;
+        // Object has "passed" the player and is now off-screen
+        // --- Ensure ProgressTracker.Instance exists before calling ---
+        if (ProgressTracker.Instance != null)
+        {
+            ProgressTracker.Instance.IncrementObjectsPassed();
+        }
+        else
+        {
+            Debug.LogWarning("SelfDestruct: ProgressTracker.Instance is null! Cannot track passed objects.");
+        }
+        // ------------------------------------------------------------------
+
+        Destroy(gameObject);
     }
 
     public void SetLifeTime(float newLifeTime)
     {
         lifeTime = newLifeTime;
+        currentLifeTime = lifeTime; // Reset current time if already running
+        if (!startTimerOnAwake) // Ensure timer starts if it wasn't on awake
+        {
+            StartCoroutine(StartSelfDestructTimer());
+        }
+    }
+
+    public void SetPaused(bool pause)
+    {
+        isPaused = pause;
     }
 }

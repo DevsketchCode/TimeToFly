@@ -62,17 +62,21 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Assets\Scripts\IncreaseScore.cs" />
+    <Compile Include="Assets\Scripts\DestroyOffscreen.cs" />
     <Compile Include="Assets\Scripts\FlyBehavior.cs" />
     <Compile Include="Assets\Scripts\BackgroundScroller.cs" />
     <Compile Include="Assets\Scripts\AudioManager.cs" />
     <Compile Include="Assets\Scripts\UIManager.cs" />
+    <Compile Include="Assets\Scripts\CloudMovement.cs" />
     <Compile Include="Assets\Scripts\Audio_DangerousObjects.cs" />
     <Compile Include="Assets\Scripts\ObjectSpawner.cs" />
+    <Compile Include="Assets\Scripts\ProgressTracker.cs" />
     <Compile Include="Assets\Scripts\Audio_Player.cs" />
     <Compile Include="Assets\Scripts\Proceed.cs" />
     <Compile Include="Assets\Scripts\WeatherManager.cs" />
     <Compile Include="Assets\Scripts\CameraOrientationZoom.cs" />
     <Compile Include="Assets\Scripts\LevelManager.cs" />
+    <Compile Include="Assets\Scripts\CloudSpawner.cs" />
     <Compile Include="Assets\Scripts\GameManager.cs" />
     <Compile Include="Assets\Scripts\MoveObject.cs" />
     <Compile Include="Assets\Scripts\SelfDestruct.cs" />

@@ -32,11 +32,6 @@ public class FlyBehavior : MonoBehaviour
     [SerializeField]
     private float flyingCoyoteTime = 0.05f; // Time to keep 'isFlying' true after velocity is zero at peak
 
-    [Header("Level Settings")]
-    [SerializeField]
-    private LayerMask obstacleLayer; // Assign the layer of your Obstacle objects in the Inspector
-    public bool isPaused = false;
-
     [Header("Player Settings")]
     public string playerTag = "Player";
     public InputActionReference jumpActionReference;
@@ -48,7 +43,14 @@ public class FlyBehavior : MonoBehaviour
     [Header("Audio Settings")]
     [Range(0.5f, 2.0f)] // Pitch usually goes from 0.5 to 2.0 (half speed to double speed)
     [SerializeField] private float flappingSoundPitch = 1.0f; // Control the "speed" of the flapping sound
-    // ------------------------------------
+
+    [Header("Level Settings")]
+    [SerializeField]
+    private LayerMask obstacleLayer; // Assign the layer of your Obstacle objects in the Inspector
+    public bool isPaused = false;                                                      // ------------------------------------
+
+    [Header("Weather Manager Integration")] // New Header for clarity
+    public bool hasReachedSafeZone = false; // NEW: Set to true when player reaches the safe zone.
 
     private InputAction jumpAction;
     private Rigidbody2D rb;
@@ -86,12 +88,20 @@ public class FlyBehavior : MonoBehaviour
         {
             Debug.LogWarning("Audio_Player component not found on player object!");
         }
+
+        // --- IMPORTANT: Initial state for clouds ---
+        // When the game starts, your level elements are typically unpaused.
+        // Therefore, the clouds should start at the faster speed.
+        if (CloudSpawner.instance != null)
+        {
+            CloudSpawner.instance.SetCloudSpeedBoost(true);
+        }
+        // --- End Initial State ---
     }
 
     private void OnDestroy()
     {
         jumpAction.Disable();
-        // No need to stop flapping sound specifically here, as it's one-shot per input.
     }
 
     private void Update()
@@ -102,10 +112,9 @@ public class FlyBehavior : MonoBehaviour
             currentlyFlying = true;
             flyingTimer = flyingCoyoteTime;
 
-            // Play the flapping sound when the jump input is pressed
             if (playerAudio != null)
             {
-                playerAudio.PlayFlappingSound(flappingSoundPitch); // Pass the pitch
+                playerAudio.PlayFlappingSound(flappingSoundPitch);
             }
         }
         else if (isPaused && jumpAction.WasPerformedThisFrame())
@@ -120,18 +129,16 @@ public class FlyBehavior : MonoBehaviour
                 hasMoved = true;
                 UIManager.instance.StartTimer();
 
-                // Play flapping sound even when paused jump occurs
                 if (playerAudio != null)
                 {
-                    playerAudio.PlayFlappingSound(flappingSoundPitch); // Pass the pitch
+                    playerAudio.PlayFlappingSound(flappingSoundPitch);
                 }
             }
             else
             {
-                // Play flapping sound even when paused jump occurs
                 if (playerAudio != null)
                 {
-                    playerAudio.PlayFlappingSound(flappingSoundPitch); // Pass the pitch
+                    playerAudio.PlayFlappingSound(flappingSoundPitch);
                 }
             }
         }
@@ -141,7 +148,6 @@ public class FlyBehavior : MonoBehaviour
     {
         transform.rotation = Quaternion.Euler(0, 0, rb.linearVelocity.y * rotationSpeed);
         HandleAnimation();
-        // REMOVE HandleFlappingSound(); as it's no longer needed for continuous sound
     }
 
     private void OnTriggerEnter2D(Collider2D other)
@@ -150,12 +156,11 @@ public class FlyBehavior : MonoBehaviour
         if (other.gameObject.CompareTag("DangerousObstacle"))
         {
             isCollidingWithObstacle = true;
-            PauseLevelElements();
+            PauseLevelElements(); // This calls the pause logic
 
             if (playerAudio != null)
             {
                 playerAudio.PlayCollisionSound();
-                // No need to explicitly stop flapping sound here, as it's one-shot.
             }
 
             GameManager.instance.GameOver();
@@ -168,11 +173,9 @@ public class FlyBehavior : MonoBehaviour
                 currentlyFlying = false;
                 flyingTimer = 0f;
 
-                // No need to explicitly stop flapping sound here.
-
                 if (!isBouncing)
                 {
-                    PauseLevelElements();
+                    PauseLevelElements(); // This calls the pause logic
                 }
                 return;
             }
@@ -181,21 +184,32 @@ public class FlyBehavior : MonoBehaviour
             {
                 Debug.Log("Bouncing off LeftBounceCollider (Trigger): Tag:" + other.gameObject.tag);
                 isCollidingWithObstacle = true;
-                StartCoroutine(HandleObstacleCollision());
+                StartCoroutine(HandleObstacleCollision()); // This handles pause/unpause internally
                 return;
             }
 
             if (!other.gameObject.CompareTag("ObstacleNoPause"))
             {
                 isCollidingWithObstacle = true;
-                PauseLevelElements();
-                // No need to explicitly stop flapping sound here.
+                PauseLevelElements(); // This calls the pause logic
             }
         }
         else if (other.gameObject.CompareTag("Proceed"))
         {
             Debug.Log("Proceeding Forward (Trigger)");
-            UnpauseLevelElements();
+            UnpauseLevelElements(); // This calls the unpause logic
+        }
+        else if (other.gameObject.CompareTag("SafeZone"))
+        {
+            hasReachedSafeZone = true;
+            PauseLevelElements(); // This calls the pause logic
+            Debug.Log("Player reached safe zone!");
+        }
+        else if (other.gameObject.CompareTag("SelfDestruct"))
+        {
+            isCollidingWithObstacle = true;
+            PauseLevelElements(); // This calls the pause logic
+            GameManager.instance.GameOver();
         }
     }
 
@@ -206,12 +220,11 @@ public class FlyBehavior : MonoBehaviour
         if (collision.gameObject.CompareTag("DangerousObstacle"))
         {
             isCollidingWithObstacle = true;
-            PauseLevelElements();
+            PauseLevelElements(); // This calls the pause logic
 
             if (playerAudio != null)
             {
                 playerAudio.PlayCollisionSound();
-                // No need to explicitly stop flapping sound here.
             }
 
             GameManager.instance.GameOver();
@@ -224,19 +237,16 @@ public class FlyBehavior : MonoBehaviour
                 currentlyFlying = false;
                 flyingTimer = 0f;
 
-                // No need to explicitly stop flapping sound here.
-
                 if (!isBouncing)
                 {
-                    PauseLevelElements();
+                    PauseLevelElements(); // This calls the pause logic
                 }
                 return;
             }
             if (!collision.gameObject.CompareTag("LeftBounceCollider"))
             {
                 isCollidingWithObstacle = true;
-                PauseLevelElements();
-                // No need to explicitly stop flapping sound here.
+                PauseLevelElements(); // This calls the pause logic
             }
         }
     }
@@ -253,7 +263,7 @@ public class FlyBehavior : MonoBehaviour
 
                 if (isPaused && !isBouncing && !isCollidingWithObstacle)
                 {
-                    UnpauseLevelElements();
+                    UnpauseLevelElements(); // This calls the unpause logic
                 }
                 return;
             }
@@ -272,7 +282,7 @@ public class FlyBehavior : MonoBehaviour
 
                 if (hit.collider == null)
                 {
-                    UnpauseLevelElements();
+                    UnpauseLevelElements(); // This calls the unpause logic
                 }
             }
         }
@@ -281,8 +291,7 @@ public class FlyBehavior : MonoBehaviour
     private IEnumerator HandleObstacleCollision()
     {
         isBouncing = true;
-        PauseLevelElements();
-        // No need to explicitly stop flapping sound here.
+        PauseLevelElements(); // This calls the pause logic and will also set clouds to normal speed
 
         GameObject[] allObjects = FindObjectsOfType<GameObject>();
         foreach (GameObject obj in allObjects)
@@ -306,7 +315,7 @@ public class FlyBehavior : MonoBehaviour
 
         yield return new WaitForSeconds(bounceDuration);
 
-        UnpauseLevelElements();
+        UnpauseLevelElements(); // This calls the unpause logic and will set clouds to faster speed
         isBouncing = false;
     }
 
@@ -353,26 +362,6 @@ public class FlyBehavior : MonoBehaviour
         }
     }
 
-    // REMOVE THIS METHOD: It's no longer needed for continuous sound
-    /*
-    /// <summary>
-    /// Controls the flapping sound based on the player's flying state.
-    /// </summary>
-    private void HandleFlappingSound()
-    {
-        if (playerAudio == null) return;
-
-        if (currentlyFlying)
-        {
-            playerAudio.ToggleFlappingSound(true, flappingSoundPitch);
-        }
-        else
-        {
-            playerAudio.ToggleFlappingSound(false);
-        }
-    }
-    */
-
     public void PauseLevelElements()
     {
         isPaused = true;
@@ -387,7 +376,12 @@ public class FlyBehavior : MonoBehaviour
                 if (obj.TryGetComponent<SelfDestruct>(out var selfDestruct)) selfDestruct.SetPaused(true);
             }
         }
-        // No need to explicitly stop flapping sound here, as it's one-shot.
+        // --- ADDED: Set Cloud speed to normal when other elements are paused ---
+        if (CloudSpawner.instance != null)
+        {
+            CloudSpawner.instance.SetCloudSpeedBoost(false); // Set clouds to normal speed
+        }
+        // ------------------------------------------------------------------
     }
 
     public void UnpauseLevelElements()
@@ -404,5 +398,11 @@ public class FlyBehavior : MonoBehaviour
                 if (obj.TryGetComponent<SelfDestruct>(out var selfDestruct)) selfDestruct.SetPaused(false);
             }
         }
+        // --- ADDED: Set Cloud speed to boosted when other elements are unpaused ---
+        if (CloudSpawner.instance != null)
+        {
+            CloudSpawner.instance.SetCloudSpeedBoost(true); // Set clouds to faster speed
+        }
+        // -------------------------------------------------------------------
     }
 }
