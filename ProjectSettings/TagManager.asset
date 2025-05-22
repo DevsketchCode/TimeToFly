@@ -45,8 +45,23 @@ TagManager:
   - 
   - 
   m_SortingLayers:
+  - name: Environment
+    uniqueID: 3253094445
+    locked: 0
+  - name: Player
+    uniqueID: 4086616913
+    locked: 0
   - name: Default
     uniqueID: 0
+    locked: 0
+  - name: Weather
+    uniqueID: 2362019765
+    locked: 0
+  - name: Ground
+    uniqueID: 1560719015
+    locked: 0
+  - name: Lightning
+    uniqueID: 1583510891
     locked: 0
   m_RenderingLayers:
   - Default
