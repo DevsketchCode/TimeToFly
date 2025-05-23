@@ -41,6 +41,7 @@ public class ObjectSpawner : MonoBehaviour
     private GameObject spawnedObjectInstance; // Reference to the last spawned random object
     private LevelManager levelManager;
     private ProgressTracker progressTracker; // Reference to the new ProgressTracker
+    private WeatherManager weatherManager; // NEW: Reference to WeatherManager
 
     private void Start()
     {
@@ -52,15 +53,22 @@ public class ObjectSpawner : MonoBehaviour
             return;
         }
 
-        // --- Get ProgressTracker instance ---
-        progressTracker = ProgressTracker.Instance; // Get the singleton instance
+        progressTracker = ProgressTracker.Instance;
         if (progressTracker == null)
         {
             Debug.LogError("ProgressTracker instance not found! Please ensure it's in the scene.");
             enabled = false;
             return;
         }
-        // No need to call ResetProgress here, WeatherManager will do it
+
+        // NEW: Get WeatherManager instance
+        weatherManager = WeatherManager.instance;
+        if (weatherManager == null)
+        {
+            Debug.LogError("WeatherManager instance not found! ObjectSpawner cannot function correctly without it.");
+            enabled = false;
+            return;
+        }
         // ------------------------------------------
 
         SpawnObject(); // Spawn an object immediately at the start
@@ -69,20 +77,36 @@ public class ObjectSpawner : MonoBehaviour
 
     private void Update()
     {
-        if (!Pause)
+        if (Pause) // If spawner is paused, do nothing
         {
-            spawnTimer -= Time.deltaTime;
+            return;
+        }
 
-            if (spawnTimer <= 0f)
-            {
-                SpawnObject();
-                ResetSpawnTimer();
-            }
+        // NEW: If WeatherManager says to stop regular spawns, then stop them.
+        if (weatherManager.ShouldStopRegularSpawns)
+        {
+            // Debug.Log("ObjectSpawner: Regular spawns currently halted by WeatherManager."); // For debugging
+            return; // Don't spawn any regular objects
+        }
+
+        spawnTimer -= Time.deltaTime;
+
+        if (spawnTimer <= 0f)
+        {
+            SpawnObject();
+            ResetSpawnTimer();
         }
     }
 
     private void SpawnObject()
     {
+        // NEW: Crucial check: If WeatherManager says to stop regular spawns, don't spawn
+        if (weatherManager.ShouldStopRegularSpawns)
+        {
+            Debug.Log("ObjectSpawner: Attempted to spawn regular object but WeatherManager halted spawns.");
+            return;
+        }
+
         if (prefabsToSpawn != null && prefabsToSpawn.Length > 0)
         {
             int randomIndex = Random.Range(0, prefabsToSpawn.Length);
@@ -92,12 +116,10 @@ public class ObjectSpawner : MonoBehaviour
             Vector3 spawnPosition = new Vector3(objectSpawner.transform.position.x, objectSpawner.transform.position.y, 0f) + new Vector3(0f, randomVerticalOffset, 0f);
             spawnedObjectInstance = Instantiate(prefabToInstantiate, spawnPosition, Quaternion.identity);
 
-            // --- Inform the ProgressTracker about the new spawned object ---
             if (progressTracker != null)
             {
                 progressTracker.IncrementTotalObjectsSpawned();
             }
-            // -------------------------------------------------------------------
 
             Debug.Log("Spawned: " + prefabToInstantiate.name + " at " + spawnPosition + " at time: " + Time.time);
 
@@ -137,10 +159,17 @@ public class ObjectSpawner : MonoBehaviour
         Pause = pause;
         if (spawnedObjectInstance != null)
         {
+            MoveObject moveObject = spawnedObjectInstance.GetComponent<MoveObject>();
+            if (moveObject != null)
+            {
+                // FIX: Change SetPaused to PauseMovement
+                moveObject.PauseMovement(pause); // This is the corrected line
+            }
+
             SelfDestruct selfDestruct = spawnedObjectInstance.GetComponent<SelfDestruct>();
             if (selfDestruct != null)
             {
-                selfDestruct.SetPaused(pause);
+                selfDestruct.SetPaused(pause); // Assuming SelfDestruct still has SetPaused
             }
         }
     }
@@ -154,7 +183,6 @@ public class ObjectSpawner : MonoBehaviour
         }
     }
 
-    // --- Public method to spawn the Safe Object ---
     public void SpawnSafeObject()
     {
         if (safeObjectPrefab == null)
@@ -174,7 +202,6 @@ public class ObjectSpawner : MonoBehaviour
 
         Debug.Log("Safe Object Spawned: " + safeObjectPrefab.name + " at " + spawnPosition + " at time: " + Time.time);
 
-        // Ensure the Safe Object also moves
         MoveObject moveObject = safeInstance.GetComponent<MoveObject>();
         if (moveObject != null && levelManager != null)
         {
@@ -186,11 +213,12 @@ public class ObjectSpawner : MonoBehaviour
         }
     }
 
-    // --- Public method to reset for game restarts ---
     public void ResetSpawner()
     {
         safeObjectSpawned = false;
         spawnTimer = 0f; // Will trigger a new spawn on next update
         Pause = false;
+        // You might also want to destroy any existing spawned regular objects here
+        // if they should clear out on a reset/restart.
     }
 }

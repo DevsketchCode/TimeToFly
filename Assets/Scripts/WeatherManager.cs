@@ -5,6 +5,9 @@ using System.Collections.Generic; // Required for List
 
 public class WeatherManager : MonoBehaviour
 {
+    // NEW: Singleton instance for easy access
+    public static WeatherManager instance;
+
     [Header("Initial Lightning Strike")]
     [Tooltip("Time to wait before the first lightning strike occurs at the level start.")]
     [SerializeField]
@@ -14,7 +17,6 @@ public class WeatherManager : MonoBehaviour
     [SerializeField]
     private GameObject initialAndSafeZoneLightningObject; // Renamed for clarity
 
-    // The existing 'initialLightningDuration' will now be the *total* duration for the initial strike's flicker sequence.
     [Tooltip("Total duration for which the initial lightning effect is active, including all flickers.")]
     [SerializeField]
     private float initialLightningDuration = 0.5f; // Increased for flicker effect
@@ -32,12 +34,18 @@ public class WeatherManager : MonoBehaviour
     private bool countdownStarted = false;
     private bool safeObjectSpawnTriggered = false; // Track if the safe object spawn has been triggered
 
+    // NEW: Flag to indicate if the player is currently within the safe zone trigger
+    private bool playerIsCurrentlyInSafeZone = false; // This will be set by FlyBehavior
+
+    // NEW: Public property for ObjectSpawner to check if it should stop regular spawns
+    public bool ShouldStopRegularSpawns { get; private set; } = false; // Initially false
+
     [Header("Safe Object Spawning")]
     [Tooltip("The ObjectSpawner in the scene.")]
     [SerializeField]
     private ObjectSpawner objectSpawner; // Reference to your ObjectSpawner
 
-    [Tooltip("Time before the main countdown ends that the Safe Object should spawn.")]
+    [Tooltip("Time before the main countdown ends that the Safe Object should spawn. This is the 'window' for the player to reach it.")]
     [SerializeField]
     private float safeObjectSpawnBufferTime = 5f; // e.g., 5 seconds before total countdown runs out
 
@@ -54,9 +62,6 @@ public class WeatherManager : MonoBehaviour
     [Tooltip("A list of lightning bolt GameObjects that should randomly strike the player on Game Over. These are children of the Lightning Container Parent.")]
     [SerializeField]
     private List<GameObject> playerStrikeLightningBolts; // Your "LightningBolt" objects for player strike
-
-    // The 'initialAndSafeZoneLightningObject' (defined above) will be used for initial and safe zone strikes.
-    // It should also be a child of 'lightningContainerParent'.
 
     [Header("Lightning Positioning")]
     [Tooltip("Vertical offset for the lightning container relative to the player's Y position.")]
@@ -80,16 +85,13 @@ public class WeatherManager : MonoBehaviour
     [SerializeField]
     private float maxFlickerOffTime = 0.15f;
 
-
-    // The existing 'playerLightningDuration' will now be the *total* duration for the player strike's flicker sequence.
     [Tooltip("Total duration for which the player lightning effect is active, including all flickers.")]
     [SerializeField]
-    private float playerLightningDuration = 0.5f; // Increased for flicker effect
+    private float playerLightningDuration = 0.5f;
 
-    // The existing 'safeZoneLightningDuration' will now be the *total* duration for the safe zone strike's flicker sequence.
     [Tooltip("Total duration for which the safe zone lightning effect is active, including all flickers.")]
     [SerializeField]
-    private float safeZoneLightningDuration = 0.5f; // Increased for flicker effect
+    private float safeZoneLightningDuration = 0.5f;
 
 
     [Header("Audio")]
@@ -106,9 +108,19 @@ public class WeatherManager : MonoBehaviour
     private Animator playerAnimator;
     private ProgressTracker progressTracker;
 
-    // --- NEW: Track the currently active lightning bolt for player strike ---
     private GameObject currentActivePlayerLightningBolt;
-    // ----------------------------------------------------------------------
+
+    void Awake()
+    {
+        if (instance == null)
+        {
+            instance = this;
+        }
+        else if (instance != this)
+        {
+            Destroy(gameObject); // Ensures only one instance exists
+        }
+    }
 
     void Start()
     {
@@ -152,7 +164,7 @@ public class WeatherManager : MonoBehaviour
             return;
         }
 
-        // --- NEW: Deactivate all lightning objects initially ---
+        // --- Deactivate all lightning objects initially ---
         if (lightningContainerParent != null)
         {
             lightningContainerParent.SetActive(false); // Deactivate the main parent
@@ -175,30 +187,67 @@ public class WeatherManager : MonoBehaviour
         StartCoroutine(InitialLightningSequence());
     }
 
-    // In WeatherManager.cs
+    public void SetPlayerSafeZoneStatus(bool isSafe)
+    {
+        playerIsCurrentlyInSafeZone = isSafe;
+        Debug.Log($"WeatherManager: PlayerIsCurrentlyInSafeZone set to {isSafe}");
+
+        if (playerIsCurrentlyInSafeZone)
+        {
+            StopAllCoroutines(); // Stop all running coroutines on this script
+            countdownStarted = false; // Ensure countdown is no longer active
+            ShouldStopRegularSpawns = true; // NEW: Make sure spawner stops regular items
+
+            // This means the player won by reaching the safe zone BEFORE the timer ran out.
+            Debug.Log("Player reached safe zone, stopping all weather events and triggering WinGame!");
+
+            if (GameManager.instance != null)
+            {
+                GameManager.instance.WinGame();
+            }
+            else
+            {
+                Debug.LogWarning("GameManager instance not found. Cannot trigger WinGame.");
+            }
+            // Optionally, play a "safe zone" specific lightning visual or sound
+            StartCoroutine(PerformLightningStrike(initialAndSafeZoneLightningObject, safeZoneLightningDuration));
+        }
+    }
+
 
     void Update()
     {
+        if (playerIsCurrentlyInSafeZone || (GameManager.instance != null && GameManager.instance.IsGameWon()))
+        {
+            if (UIManager.instance != null)
+            {
+                UIManager.instance.UpdateTimeDisplay(0f);
+            }
+            return; // Do not process countdown or final strike logic
+        }
+
         if (countdownStarted)
         {
             currentCountdownTime -= Time.deltaTime;
 
-            // Pass the current countdown time to the UIManager to display
             if (UIManager.instance != null)
             {
                 UIManager.instance.UpdateTimeDisplay(currentCountdownTime);
             }
-            // --------------------------
 
+            // --- IMPORTANT CHANGE: Only check progress if the safe object hasn't been triggered yet ---
             if (!safeObjectSpawnTriggered && currentCountdownTime <= safeObjectSpawnBufferTime)
             {
+                // This condition makes sure we only spawn the safe object once
+                // AND that the player has met the progression requirement.
                 if (progressTracker != null && progressTracker.HasMetProgressionRequirement())
                 {
                     if (objectSpawner != null)
                     {
                         objectSpawner.SpawnSafeObject();
                         safeObjectSpawnTriggered = true;
-                        Debug.Log($"Safe Object spawn triggered! Time remaining: {currentCountdownTime:F2}");
+                        ShouldStopRegularSpawns = true; // NEW: Tell the spawner to stop regular items
+                        Debug.Log($"Safe Object spawn triggered! Time remaining: {currentCountdownTime:F2}. Regular spawns halted.");
                     }
                     else
                     {
@@ -207,7 +256,16 @@ public class WeatherManager : MonoBehaviour
                 }
                 else
                 {
-                    Debug.Log($"Safe Object spawn condition met (time), but progression not yet sufficient. Current progress: {progressTracker.objectsPassed}/{progressTracker.GetEstimatedTotalObjects()} (Passed: {progressTracker.objectsPassed}, Total Spawned: {progressTracker.totalObjectsSpawned})");
+                    // This means we're in the time window for the safe object, but progress isn't met.
+                    // This is where you might want to consider the "larger gap" or "no other spawns"
+                    // logic to prevent unfair deaths if progression isn't met.
+                    // If progress is NOT met, we still want to stop regular spawns
+                    // to give the player a chance to get the required progress before the end.
+                    if (!ShouldStopRegularSpawns) // Prevent redundant setting
+                    {
+                        ShouldStopRegularSpawns = true; // NEW: Halt regular spawns even if progress isn't met yet
+                        Debug.Log($"Safe Object spawn window entered. Regular spawns halted. Progress not yet met: {progressTracker.objectsPassed}/{progressTracker.GetEstimatedTotalObjects()}.");
+                    }
                 }
             }
 
@@ -225,6 +283,7 @@ public class WeatherManager : MonoBehaviour
         currentCountdownTime = initialCountdownDuration;
         countdownStarted = true;
         safeObjectSpawnTriggered = false;
+        ShouldStopRegularSpawns = false; // NEW: Reset for new countdown
 
         if (progressTracker != null && objectSpawner != null)
         {
@@ -242,8 +301,10 @@ public class WeatherManager : MonoBehaviour
     {
         yield return new WaitForSeconds(initialStrikeDelay);
 
-        // Call the new helper coroutine for the strike effect
-        yield return StartCoroutine(PerformLightningStrike(initialAndSafeZoneLightningObject, initialLightningDuration));
+        if (!playerIsCurrentlyInSafeZone)
+        {
+            yield return StartCoroutine(PerformLightningStrike(initialAndSafeZoneLightningObject, initialLightningDuration));
+        }
 
         StartCountdown();
     }
@@ -252,24 +313,12 @@ public class WeatherManager : MonoBehaviour
     {
         yield return null; // Wait one frame
 
-        if (playerFlyBehavior != null && playerFlyBehavior.hasReachedSafeZone)
+        if (playerIsCurrentlyInSafeZone)
         {
-            Debug.Log("Player reached safe zone in time! Win scenario.");
-            yield return new WaitForSeconds(0.5f); // Short delay before safe zone lightning
-
-            // Call the new helper coroutine for the strike effect
-            yield return StartCoroutine(PerformLightningStrike(initialAndSafeZoneLightningObject, safeZoneLightningDuration));
-
-            if (GameManager.instance != null)
-            {
-                GameManager.instance.WinGame();
-            }
-            else
-            {
-                Debug.LogWarning("GameManager instance not found for WinGame call.");
-            }
+            Debug.Log("Player reached safe zone, skipping final lightning strike (already won by entering safe zone).");
+            yield break;
         }
-        else // Player did NOT reach safe zone in time! Game Over scenario.
+        else
         {
             Debug.Log("Player did NOT reach safe zone in time! Game Over scenario.");
 
@@ -279,22 +328,19 @@ public class WeatherManager : MonoBehaviour
                 Debug.Log("Triggering 'isBurnt' animation.");
             }
 
-            // Randomly select the player strike lightning bolt BEFORE calling the strike routine
             GameObject lightningToStrikePlayer = null;
             if (playerStrikeLightningBolts.Count > 0)
             {
                 int randomIndex = Random.Range(0, playerStrikeLightningBolts.Count);
                 lightningToStrikePlayer = playerStrikeLightningBolts[randomIndex];
-                currentActivePlayerLightningBolt = lightningToStrikePlayer; // Store the reference
+                currentActivePlayerLightningBolt = lightningToStrikePlayer;
             }
             else
             {
                 Debug.LogWarning("No player strike lightning bolts assigned!");
-                // Fallback to initialAndSafeZoneLightningObject if no specific player ones are assigned
                 lightningToStrikePlayer = initialAndSafeZoneLightningObject;
             }
 
-            // Call the new helper coroutine for the strike effect
             if (lightningToStrikePlayer != null)
             {
                 yield return StartCoroutine(PerformLightningStrike(lightningToStrikePlayer, playerLightningDuration));
@@ -320,14 +366,12 @@ public class WeatherManager : MonoBehaviour
         if (lightningContainerParent == null || lightningBoltVisual == null)
         {
             Debug.LogWarning("Lightning Container Parent or specific lightning bolt visual not assigned for strike!");
-            yield break; // Exit if references are missing
+            yield break;
         }
 
-        // 1. Position the main lightning parent at the player's location, applying the Y-offset
         if (playerGameObject != null)
         {
             Vector3 playerPos = playerGameObject.transform.position;
-            // Adjust the Y position with the new offset
             lightningContainerParent.transform.position = new Vector3(lightningContainerParent.transform.position.x, playerPos.y + lightningYOffset, lightningContainerParent.transform.position.z);
         }
         else
@@ -336,19 +380,16 @@ public class WeatherManager : MonoBehaviour
             yield break;
         }
 
-        // 2. Activate the main lightning parent
         lightningContainerParent.SetActive(true);
 
-        // 3. Play thunder sound (only once per strike)
         if (thunderSound != null && AudioManager.Instance != null)
         {
             AudioManager.Instance.PlaySFX(thunderSound, thunderVolume);
         }
 
-        // Small initial delay before the first flicker starts
         yield return new WaitForSeconds(0.05f);
 
-        int actualFlickerCount = Random.Range(minFlickerCount, maxFlickerCount + 1); // +1 because Random.Range for int is exclusive for max
+        int actualFlickerCount = Random.Range(minFlickerCount, maxFlickerCount + 1);
 
         for (int i = 0; i < actualFlickerCount; i++)
         {
@@ -357,7 +398,6 @@ public class WeatherManager : MonoBehaviour
 
             lightningBoltVisual.SetActive(false);
 
-            // Don't wait after the last flicker
             if (i < actualFlickerCount - 1)
             {
                 float randomOffTime = Random.Range(minFlickerOffTime, maxFlickerOffTime);
@@ -365,30 +405,32 @@ public class WeatherManager : MonoBehaviour
             }
         }
 
-        // Final deactivation
-        lightningBoltVisual.SetActive(false); // Ensure it's off
-        lightningContainerParent.SetActive(false); // Deactivate the parent
-        currentActivePlayerLightningBolt = null; // Clear reference if it was a player strike
+        lightningBoltVisual.SetActive(false);
+        lightningContainerParent.SetActive(false);
+        currentActivePlayerLightningBolt = null;
     }
 
     public void ResetWeather()
     {
+        StopAllCoroutines();
+
         countdownStarted = false;
         safeObjectSpawnTriggered = false;
         currentCountdownTime = 0f;
         initialCountdownDuration = 0f;
+        playerIsCurrentlyInSafeZone = false;
+        ShouldStopRegularSpawns = false; // NEW: Reset this flag too
 
-        // Ensure all lightning visuals are turned off and the container is inactive
         if (initialAndSafeZoneLightningObject != null) initialAndSafeZoneLightningObject.SetActive(false);
         foreach (GameObject lb in playerStrikeLightningBolts)
         {
             if (lb != null) lb.SetActive(false);
         }
-        if (currentActivePlayerLightningBolt != null) currentActivePlayerLightningBolt.SetActive(false); // Just in case
+        if (currentActivePlayerLightningBolt != null) currentActivePlayerLightningBolt.SetActive(false);
         currentActivePlayerLightningBolt = null;
 
         if (lightningContainerParent != null) lightningContainerParent.SetActive(false);
-        StopAllCoroutines();
+
 
         if (objectSpawner != null)
         {

@@ -4,6 +4,9 @@ using System.Collections; // Required for Coroutines
 
 public class FlyBehavior : MonoBehaviour
 {
+    // Make FlyBehavior a Singleton for easy access from other scripts if needed
+    public static FlyBehavior instance; // NEW: Singleton instance
+
     [Header("Movement Settings")]
     [SerializeField]
     private float jumpForce = 5f;
@@ -47,7 +50,7 @@ public class FlyBehavior : MonoBehaviour
     [Header("Level Settings")]
     [SerializeField]
     private LayerMask obstacleLayer; // Assign the layer of your Obstacle objects in the Inspector
-    public bool isPaused = false;                                                      // ------------------------------------
+    public bool isPaused = false;
 
     [Header("Weather Manager Integration")] // New Header for clarity
     public bool hasReachedSafeZone = false; // NEW: Set to true when player reaches the safe zone.
@@ -62,6 +65,19 @@ public class FlyBehavior : MonoBehaviour
     private float flyingTimer; // Timer for the coyote time
 
     private LevelManager levelManager;
+
+    // NEW: Singleton Awake method
+    void Awake()
+    {
+        if (instance == null)
+        {
+            instance = this;
+        }
+        else if (instance != this)
+        {
+            Destroy(gameObject);
+        }
+    }
 
     private void Start()
     {
@@ -97,6 +113,16 @@ public class FlyBehavior : MonoBehaviour
             CloudSpawner.instance.SetCloudSpeedBoost(true);
         }
         // --- End Initial State ---
+
+        // NEW: Inform WeatherManager that player is NOT in the safe zone at game start
+        if (WeatherManager.instance != null)
+        {
+            WeatherManager.instance.SetPlayerSafeZoneStatus(false);
+        }
+        else
+        {
+            Debug.LogWarning("WeatherManager instance not found. Cannot set initial safe zone status.");
+        }
     }
 
     private void OnDestroy()
@@ -163,6 +189,8 @@ public class FlyBehavior : MonoBehaviour
                 playerAudio.PlayCollisionSound();
             }
 
+            animator.SetBool("isBurnt", true);
+            // Removed redundant HandleAnimation() call here, it's called in FixedUpdate
             GameManager.instance.GameOver();
         }
         else if (other.gameObject.CompareTag("Obstacle") || other.gameObject.CompareTag("ObstacleNoPause"))
@@ -204,11 +232,23 @@ public class FlyBehavior : MonoBehaviour
             hasReachedSafeZone = true;
             PauseLevelElements(); // This calls the pause logic
             Debug.Log("Player reached safe zone!");
+
+            // NEW: Inform WeatherManager that the player IS in the safe zone
+            if (WeatherManager.instance != null)
+            {
+                WeatherManager.instance.SetPlayerSafeZoneStatus(true);
+            }
+            else
+            {
+                Debug.LogWarning("WeatherManager instance not found. Cannot inform it about safe zone status.");
+            }
         }
         else if (other.gameObject.CompareTag("SelfDestruct"))
         {
             isCollidingWithObstacle = true;
             PauseLevelElements(); // This calls the pause logic
+            animator.SetBool("isBurnt", true);
+            // Removed redundant HandleAnimation() call here
             GameManager.instance.GameOver();
         }
     }
@@ -227,6 +267,8 @@ public class FlyBehavior : MonoBehaviour
                 playerAudio.PlayCollisionSound();
             }
 
+            animator.SetBool("isBurnt", true);
+            // Removed redundant HandleAnimation() call here
             GameManager.instance.GameOver();
         }
         else if (collision.gameObject.CompareTag("Obstacle") || collision.gameObject.CompareTag("ObstacleNoPause"))
@@ -321,44 +363,71 @@ public class FlyBehavior : MonoBehaviour
 
     private void HandleAnimation()
     {
+        // Add null check for animator
+        if (animator == null) return;
+
+        // NEW: If "isBurnt" is true, stop all other animations
+        if (animator.GetBool("isBurnt"))
+        {
+            animator.SetBool("isFlying", false);
+            animator.SetBool("isOnGround", false);
+            animator.SetBool("isShocked", false); // Ensure shocked is false if burnt
+            animator.SetFloat("FlappingSpeed", 1.0f); // Set to default or 0 if preferred
+            return; // Don't process other animation states if burnt
+        }
+
         bool isMovingVertically = Mathf.Abs(rb.linearVelocity.y) > flyingVelocityThreshold;
 
-        if (isOnGround)
+        // If 'isShocked' is true, set general animation booleans to false
+        // and let the animator controller handle the 'isShocked' animation itself.
+        if (animator.GetBool("isShocked"))
         {
-            currentlyFlying = false;
-            flyingTimer = 0f;
-        }
-        else // Player is in the air
-        {
-            if (isMovingVertically)
-            {
-                currentlyFlying = true;
-                flyingTimer = flyingCoyoteTime;
-            }
-            else // Not moving vertically, but in the air (at the peak)
-            {
-                if (flyingTimer > 0)
-                {
-                    flyingTimer -= Time.fixedDeltaTime;
-                    currentlyFlying = true;
-                }
-                else
-                {
-                    currentlyFlying = false;
-                }
-            }
-        }
-
-        animator.SetBool("isFlying", currentlyFlying);
-        animator.SetBool("isOnGround", isOnGround);
-
-        if (currentlyFlying)
-        {
-            animator.SetFloat("FlappingSpeed", flappingAnimationSpeed);
-        }
-        else
-        {
+            animator.SetBool("isFlying", false);
+            animator.SetBool("isOnGround", false);
+            // You might want to set flapping speed to a neutral or 0 if shocked anim doesn't flap.
+            // For now, let's just make sure it's not overriding current anim.
             animator.SetFloat("FlappingSpeed", 1.0f);
+        }
+        else // Only update flying/ground states if NOT shocked
+        {
+            if (isOnGround)
+            {
+                currentlyFlying = false;
+                flyingTimer = 0f;
+            }
+            else // Player is in the air
+            {
+                if (isMovingVertically)
+                {
+                    currentlyFlying = true;
+                    flyingTimer = flyingCoyoteTime;
+                }
+                else // Not moving vertically, but in the air (at the peak)
+                {
+                    if (flyingTimer > 0)
+                    {
+                        flyingTimer -= Time.fixedDeltaTime;
+                        currentlyFlying = true;
+                    }
+                    else
+                    {
+                        currentlyFlying = false;
+                    }
+                }
+            }
+
+            animator.SetBool("isFlying", currentlyFlying);
+            animator.SetBool("isOnGround", isOnGround);
+
+            // Flapping speed is usually tied to flying
+            if (currentlyFlying)
+            {
+                animator.SetFloat("FlappingSpeed", flappingAnimationSpeed);
+            }
+            else
+            {
+                animator.SetFloat("FlappingSpeed", 1.0f);
+            }
         }
     }
 
