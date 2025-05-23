@@ -3551,10 +3551,10 @@ MonoBehaviour:
   initialStrikeDelay: 0.5
   initialAndSafeZoneLightningObject: {fileID: 559805624}
   initialLightningDuration: 0.1
-  minCountdownTime: 10
-  maxCountdownTime: 12
+  minCountdownTime: 45
+  maxCountdownTime: 60
   objectSpawner: {fileID: 1006136719}
-  safeObjectSpawnBufferTime: 10
+  safeObjectSpawnBufferTime: 6
   playerGameObject: {fileID: 524589764}
   lightningContainerParent: {fileID: 1166520081}
   playerStrikeLightningBolts:

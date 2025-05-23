@@ -380,7 +380,7 @@ public class FlyBehavior : MonoBehaviour
 
         // If 'isShocked' is true, set general animation booleans to false
         // and let the animator controller handle the 'isShocked' animation itself.
-        if (animator.GetBool("isShocked"))
+        if (!animator.GetBool("isShocked"))
         {
             animator.SetBool("isFlying", false);
             animator.SetBool("isOnGround", false);
