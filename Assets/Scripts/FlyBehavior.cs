@@ -1,6 +1,6 @@
 using UnityEngine;
 using UnityEngine.InputSystem;
-using System.Collections; // Required for Coroutines
+using System.Collections; // Required for Coroutines (still needed for HandleObstacleCollision)
 
 public class FlyBehavior : MonoBehaviour
 {
@@ -50,10 +50,17 @@ public class FlyBehavior : MonoBehaviour
     [Header("Level Settings")]
     [SerializeField]
     private LayerMask obstacleLayer; // Assign the layer of your Obstacle objects in the Inspector
-    public bool isPaused = false;
+    public bool isPaused = false; // This flag indicates a general game pause affecting player input/logic
 
     [Header("Weather Manager Integration")] // New Header for clarity
     public bool hasReachedSafeZone = false; // NEW: Set to true when player reaches the safe zone.
+
+    [Header("Game Over Slow Motion")] // New Header for clarity
+    [SerializeField]
+    private float slowMotionTimeScale = 0.2f; // How much to slow down (e.g., 0.2f for 5x slower)
+
+    // NEW: Add a flag to control player input
+    public bool canReceiveInput = true; // Control if player can input
 
     private InputAction jumpAction;
     private Rigidbody2D rb;
@@ -123,6 +130,7 @@ public class FlyBehavior : MonoBehaviour
         {
             Debug.LogWarning("WeatherManager instance not found. Cannot set initial safe zone status.");
         }
+
     }
 
     private void OnDestroy()
@@ -132,7 +140,9 @@ public class FlyBehavior : MonoBehaviour
 
     private void Update()
     {
-        if (!isPaused && jumpAction.WasPerformedThisFrame())
+        // Only allow input if canReceiveInput is true AND the game is NOT in a full game over/win state (checked by GameManager)
+        // If GameManager.instance.IsGameOver() returns true, this player input will be ignored.
+        if (!isPaused && canReceiveInput && jumpAction.WasPerformedThisFrame())
         {
             rb.AddForce(Vector2.up * jumpForce, ForceMode2D.Impulse);
             currentlyFlying = true;
@@ -143,8 +153,10 @@ public class FlyBehavior : MonoBehaviour
                 playerAudio.PlayFlappingSound(flappingSoundPitch);
             }
         }
-        else if (isPaused && jumpAction.WasPerformedThisFrame())
+        else if (isPaused && canReceiveInput && jumpAction.WasPerformedThisFrame())
         {
+            // This block is for when the player is paused (e.g., hit a non-dangerous obstacle)
+            // but still has input enabled (like in the "isShocked" state).
             rb.linearVelocity = Vector2.zero;
             rb.AddForce(Vector2.up * pausedJumpForce, ForceMode2D.Impulse);
             if (!hasMoved)
@@ -179,19 +191,11 @@ public class FlyBehavior : MonoBehaviour
     private void OnTriggerEnter2D(Collider2D other)
     {
         Debug.Log("Trigger entered by: " + other.gameObject.name + " Tag: " + other.gameObject.tag);
-        if (other.gameObject.CompareTag("DangerousObstacle"))
+        // Ensure that "DangerousObstacle" and "SelfDestruct" (which seems to be an instant kill)
+        // trigger the immediate stop and Game Over.
+        if (other.gameObject.CompareTag("DangerousObstacle") || other.gameObject.CompareTag("SelfDestruct"))
         {
-            isCollidingWithObstacle = true;
-            PauseLevelElements(); // This calls the pause logic
-
-            if (playerAudio != null)
-            {
-                playerAudio.PlayCollisionSound();
-            }
-
-            animator.SetBool("isBurnt", true);
-            // Removed redundant HandleAnimation() call here, it's called in FixedUpdate
-            GameManager.instance.GameOver();
+            HandleDeathCondition(); // Call the dedicated death handler
         }
         else if (other.gameObject.CompareTag("Obstacle") || other.gameObject.CompareTag("ObstacleNoPause"))
         {
@@ -230,10 +234,23 @@ public class FlyBehavior : MonoBehaviour
         else if (other.gameObject.CompareTag("SafeZone"))
         {
             hasReachedSafeZone = true;
-            PauseLevelElements(); // This calls the pause logic
+
+            // Immediately disable player input and pause level elements
+            DisablePlayerInput();
+            PauseLevelElements();
+            rb.linearVelocity = Vector2.zero; // Stop player movement immediately on win
+
             Debug.Log("Player reached safe zone!");
 
-            // NEW: Inform WeatherManager that the player IS in the safe zone
+            if (UIManager.instance != null)
+            {
+                UIManager.instance.StopTimer(); // Call StopTimer on game over
+            }
+            else
+            {
+                Debug.LogWarning("UIManager instance not found! Cannot stop timer on game over.");
+            }
+
             if (WeatherManager.instance != null)
             {
                 WeatherManager.instance.SetPlayerSafeZoneStatus(true);
@@ -242,14 +259,15 @@ public class FlyBehavior : MonoBehaviour
             {
                 Debug.LogWarning("WeatherManager instance not found. Cannot inform it about safe zone status.");
             }
-        }
-        else if (other.gameObject.CompareTag("SelfDestruct"))
-        {
-            isCollidingWithObstacle = true;
-            PauseLevelElements(); // This calls the pause logic
-            animator.SetBool("isBurnt", true);
-            // Removed redundant HandleAnimation() call here
-            GameManager.instance.GameOver();
+
+            if (GameManager.instance != null)
+            {
+                GameManager.instance.WinGame();
+            }
+            else
+            {
+                Debug.LogError("GameManager instance not found! Cannot call Win Game.");
+            }
         }
     }
 
@@ -259,17 +277,7 @@ public class FlyBehavior : MonoBehaviour
 
         if (collision.gameObject.CompareTag("DangerousObstacle"))
         {
-            isCollidingWithObstacle = true;
-            PauseLevelElements(); // This calls the pause logic
-
-            if (playerAudio != null)
-            {
-                playerAudio.PlayCollisionSound();
-            }
-
-            animator.SetBool("isBurnt", true);
-            // Removed redundant HandleAnimation() call here
-            GameManager.instance.GameOver();
+            HandleDeathCondition(); // Call the dedicated death handler
         }
         else if (collision.gameObject.CompareTag("Obstacle") || collision.gameObject.CompareTag("ObstacleNoPause"))
         {
@@ -330,6 +338,56 @@ public class FlyBehavior : MonoBehaviour
         }
     }
 
+    // New helper method to centralize death handling logic
+    private void HandleDeathCondition()
+    {
+        // Only proceed if the game isn't already in a game over state
+        // This prevents multiple Game Over calls if multiple hazardous objects are hit rapidly
+        if (GameManager.instance != null && GameManager.instance.IsGameOver())
+        {
+            return;
+        }
+
+        DisablePlayerInput(); // Stop player input
+        PauseLevelElements(); // Pause all level elements (BackgroundScroller, MoveObject, ObjectSpawner)
+        rb.linearVelocity = Vector2.zero; // Immediately stop player's Rigidbody movement
+
+        isCollidingWithObstacle = true; // Mark as colliding with obstacle
+
+        if (UIManager.instance != null)
+        {
+            UIManager.instance.StopTimer(); // Call StopTimer on game over
+            UIManager.instance.hasStopped = true; // Ensure the timer stops updating
+            Debug.Log("Stopping timer on game over.");
+        }
+        else
+        {
+            Debug.LogWarning("UIManager instance not found! Cannot stop timer on game over.");
+        }
+
+        // ** Activate Slow Motion **
+        Time.timeScale = slowMotionTimeScale;
+        Debug.Log("Player hit Dangerous Obstacle! Initiating slow motion. Time.timeScale = " + Time.timeScale);
+
+
+        if (playerAudio != null)
+        {
+            playerAudio.PlayCollisionSound();
+        }
+        animator.SetBool("isFlying", false); // Ensure flying animation is off
+
+        animator.SetBool("hitDangerousObstacle", true); // Trigger death animation
+
+        if (GameManager.instance != null)
+        {
+            GameManager.instance.GameOver(); // Call Game Over (GameManager handles the delay for the screen)
+        }
+        else
+        {
+            Debug.LogError("GameManager instance not found! Cannot call Game Over.");
+        }
+    }
+
     private IEnumerator HandleObstacleCollision()
     {
         isBouncing = true;
@@ -366,8 +424,8 @@ public class FlyBehavior : MonoBehaviour
         // Add null check for animator
         if (animator == null) return;
 
-        // NEW: If "isBurnt" is true, stop all other animations
-        if (animator.GetBool("isBurnt"))
+        // NEW: If hit a dangerous object, stop all other animations
+        if (animator.GetBool("isBurnt") || animator.GetBool("isElectricuted") || animator.GetBool("hitDangerousObstacle"))
         {
             animator.SetBool("isFlying", false);
             animator.SetBool("isOnGround", false);
@@ -434,44 +492,98 @@ public class FlyBehavior : MonoBehaviour
     public void PauseLevelElements()
     {
         isPaused = true;
-        GameObject[] allObjects = FindObjectsOfType<GameObject>();
-        foreach (GameObject obj in allObjects)
+        // Use FindObjectsOfType to get all relevant objects and pause them.
+        // This is a more robust way to ensure everything stops.
+
+        // Pause BackgroundScrollers
+        BackgroundScroller[] backgroundScrollers = FindObjectsOfType<BackgroundScroller>();
+        foreach (BackgroundScroller bs in backgroundScrollers)
         {
-            if (!obj.CompareTag(playerTag))
-            {
-                if (obj.TryGetComponent<BackgroundScroller>(out var loop)) loop.Pause = true;
-                if (obj.TryGetComponent<ObjectSpawner>(out var spawner)) spawner.Pause = true;
-                if (obj.TryGetComponent<MoveObject>(out var move)) move.Pause = true;
-                if (obj.TryGetComponent<SelfDestruct>(out var selfDestruct)) selfDestruct.SetPaused(true);
-            }
+            bs.Pause = true;
         }
-        // --- ADDED: Set Cloud speed to normal when other elements are paused ---
+
+        // Pause ObjectSpawners
+        ObjectSpawner[] objectSpawners = FindObjectsOfType<ObjectSpawner>();
+        foreach (ObjectSpawner os in objectSpawners)
+        {
+            os.Pause = true;
+        }
+
+        // Pause MoveObjects (obstacles, etc.)
+        MoveObject[] moveObjects = FindObjectsOfType<MoveObject>();
+        foreach (MoveObject mo in moveObjects)
+        {
+            mo.Pause = true;
+        }
+
+        // Pause SelfDestruct components (if they should stop their countdowns)
+        SelfDestruct[] selfDestructs = FindObjectsOfType<SelfDestruct>();
+        foreach (SelfDestruct sd in selfDestructs)
+        {
+            sd.SetPaused(true);
+        }
+
+        // --- Set Cloud speed to normal when other elements are paused ---
         if (CloudSpawner.instance != null)
         {
             CloudSpawner.instance.SetCloudSpeedBoost(false); // Set clouds to normal speed
         }
-        // ------------------------------------------------------------------
     }
 
     public void UnpauseLevelElements()
     {
         isPaused = false;
-        GameObject[] allObjects = FindObjectsOfType<GameObject>();
-        foreach (GameObject obj in allObjects)
+        // Unpause BackgroundScrollers
+        BackgroundScroller[] backgroundScrollers = FindObjectsOfType<BackgroundScroller>();
+        foreach (BackgroundScroller bs in backgroundScrollers)
         {
-            if (!obj.CompareTag(playerTag))
-            {
-                if (obj.TryGetComponent<BackgroundScroller>(out var loop)) loop.Pause = false;
-                if (obj.TryGetComponent<ObjectSpawner>(out var spawner)) spawner.Pause = false;
-                if (obj.TryGetComponent<MoveObject>(out var move)) move.Pause = false;
-                if (obj.TryGetComponent<SelfDestruct>(out var selfDestruct)) selfDestruct.SetPaused(false);
-            }
+            bs.Pause = false;
         }
-        // --- ADDED: Set Cloud speed to boosted when other elements are unpaused ---
+
+        // Unpause ObjectSpawners
+        ObjectSpawner[] objectSpawners = FindObjectsOfType<ObjectSpawner>();
+        foreach (ObjectSpawner os in objectSpawners)
+        {
+            os.Pause = false;
+        }
+
+        // Unpause MoveObjects
+        MoveObject[] moveObjects = FindObjectsOfType<MoveObject>();
+        foreach (MoveObject mo in moveObjects)
+        {
+            mo.Pause = false;
+        }
+
+        // Unpause SelfDestruct components
+        SelfDestruct[] selfDestructs = FindObjectsOfType<SelfDestruct>();
+        foreach (SelfDestruct sd in selfDestructs)
+        {
+            sd.SetPaused(false);
+        }
+
+        // --- Set Cloud speed to boosted when other elements are unpaused ---
         if (CloudSpawner.instance != null)
         {
             CloudSpawner.instance.SetCloudSpeedBoost(true); // Set clouds to faster speed
         }
-        // -------------------------------------------------------------------
+    }
+
+    /// <summary>
+    /// Disables player input by setting canReceiveInput to false.
+    /// </summary>
+    public void DisablePlayerInput()
+    {
+        canReceiveInput = false;
+        // It's generally good practice to also disable the input action itself
+        jumpAction.Disable();
+    }
+
+    /// <summary>
+    /// Enables player input by setting canReceiveInput to true.
+    /// </summary>
+    public void EnablePlayerInput()
+    {
+        canReceiveInput = true;
+        jumpAction.Enable();
     }
 }

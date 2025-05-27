@@ -33,18 +33,6 @@ public class SelfDestruct : MonoBehaviour
             yield return null; // Wait for the next frame
         }
 
-        // Object has "passed" the player and is now off-screen
-        // --- Ensure ProgressTracker.Instance exists before calling ---
-        if (ProgressTracker.Instance != null)
-        {
-            ProgressTracker.Instance.IncrementObjectsPassed();
-        }
-        else
-        {
-            Debug.LogWarning("SelfDestruct: ProgressTracker.Instance is null! Cannot track passed objects.");
-        }
-        // ------------------------------------------------------------------
-
         Destroy(gameObject);
     }
 

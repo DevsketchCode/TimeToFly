@@ -1,3 +1,4 @@
+using System.Collections;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
@@ -14,11 +15,19 @@ public class GameManager : MonoBehaviour
     [SerializeField]
     private GameObject winCanvas; // Reference to the Win UI Canvas/GameObject
 
+    [Header("Screen Delay Settings")]
+    [Tooltip("Delay in seconds before showing the Game Over or Win screen.")]
+    [SerializeField]
+    private float gameOverScreenDisplayDelay = 1.5f; // Unified delay for both screens
+
     // Private variable to track game over state
     private bool isGameOver = false;
 
-    // NEW: Private variable to track win state
+    // Private variable to track win state
     private bool isGameWon = false; // Added to explicitly track win condition
+
+    // Private variable to track pause state
+    private bool isGamePausedInternal = false;
 
     private void Awake()
     {
@@ -70,6 +79,7 @@ public class GameManager : MonoBehaviour
         // Reset game over and win states when starting a new game
         isGameOver = false;
         isGameWon = false;
+        isGamePausedInternal = false; // Game is unpaused when starting
     }
 
     public void GameOver()
@@ -79,15 +89,10 @@ public class GameManager : MonoBehaviour
 
         isGameOver = true;
         isGameWon = false; // Ensure win state is false
+        isGamePausedInternal = true; // Game is logically paused
 
-        UIManager.instance.StopTimer(); // Call StopTimer on game over
-        gameMenuCanvas.SetActive(true);
-        gameOverCanvas.SetActive(true);
-        if (winCanvas != null) // Ensure winCanvas is hidden
-        {
-            winCanvas.SetActive(false);
-        }
-        Time.timeScale = 0f;
+        // Start the Coroutine to handle the delay and then show the game over screen
+        StartCoroutine(ShowEndGameScreenAfterDelay(gameOverCanvas));
     }
 
     // Method for winning the game
@@ -98,20 +103,44 @@ public class GameManager : MonoBehaviour
 
         isGameOver = true; // Win is also an end state for the game loop
         isGameWon = true;
+        isGamePausedInternal = true; // Game is logically paused
 
         UIManager.instance.StopTimer(); // Stop timer on win
-        gameMenuCanvas.SetActive(true);
-        gameOverCanvas.SetActive(false); // Ensure game over is hidden
+
+        // Start the Coroutine to handle the delay and then show the win screen
+        StartCoroutine(ShowEndGameScreenAfterDelay(winCanvas));
+    }
+
+    // This Coroutine now handles displaying either the Game Over or Win screen
+    private IEnumerator ShowEndGameScreenAfterDelay(GameObject screenToShow)
+    {
+        Debug.Log($"Waiting for {gameOverScreenDisplayDelay} seconds before showing {screenToShow.name}...");
+        yield return new WaitForSeconds(gameOverScreenDisplayDelay);
+
+        // ** Reset Time.timeScale back to normal **
+        Time.timeScale = 1.0f;
+        Debug.Log("Game Over screen appearing. Time.timeScale reset to: " + Time.timeScale);
+
+        Debug.Log($"Displaying {screenToShow.name}.");
+        gameMenuCanvas.SetActive(true); // Always show the main game menu canvas if it acts as a container
+        gameOverCanvas.SetActive(false); // Hide both initially
         if (winCanvas != null)
         {
-            winCanvas.SetActive(true); // Display win screen
+            winCanvas.SetActive(false);
         }
-        Time.timeScale = 0f;
+
+        // Now activate the specific screen requested
+        if (screenToShow != null)
+        {
+            screenToShow.SetActive(true);
+        }
+
+        Time.timeScale = 0f; // Freeze the game completely after the delay
     }
 
     public void RestartGame()
     {
-        Time.timeScale = 1f;
+        Time.timeScale = 1.0f; // Ensure time is normal for the start of a new game
         gameMenuCanvas.SetActive(false);
         gameOverCanvas.SetActive(false);
         if (winCanvas != null) // Ensure winCanvas is hidden
@@ -121,6 +150,10 @@ public class GameManager : MonoBehaviour
         // Reset game over and win states before reloading the scene
         isGameOver = false;
         isGameWon = false;
+        isGamePausedInternal = false;
+
+        FlyBehavior.instance.EnablePlayerInput(); // Re-enable player input if applicable
+
         SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex);
     }
 
@@ -129,6 +162,7 @@ public class GameManager : MonoBehaviour
         // Don't allow pausing if the game is already over or won
         if (isGameOver || isGameWon) return;
 
+        isGamePausedInternal = true;
         Time.timeScale = 0f;
         gameMenuCanvas.SetActive(true);
         gameOverCanvas.SetActive(false); // Ensure game over is hidden
@@ -136,6 +170,16 @@ public class GameManager : MonoBehaviour
         {
             winCanvas.SetActive(false);
         }
+    }
+
+    // Public method to unpause the game
+    public void Unpause()
+    {
+        if (!isGamePausedInternal || isGameOver || isGameWon) return;
+
+        isGamePausedInternal = false;
+        Time.timeScale = 1f;
+        gameMenuCanvas.SetActive(false);
     }
 
     public void QuitGame()
@@ -150,9 +194,15 @@ public class GameManager : MonoBehaviour
         return isGameOver;
     }
 
-    // NEW: Public method for other scripts to check if the game has been won
+    // Public method for other scripts to check if the game has been won
     public bool IsGameWon()
     {
         return isGameWon;
+    }
+
+    // Public method for other scripts to check if the game is currently paused
+    public bool IsGamePaused()
+    {
+        return isGamePausedInternal;
     }
 }

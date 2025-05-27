@@ -54,6 +54,12 @@ public class WeatherManager : MonoBehaviour
     [SerializeField]
     private GameObject playerGameObject;
 
+    [SerializeField]
+    private bool allowPlayerToMoveOnStart = true; // Whether the player can move at the start of the game
+
+    [SerializeField]
+    private Animator animator; // Reference to the player's Animator, if needed for animations
+
     [Header("Lightning Bolt Containers")]
     [Tooltip("The main parent GameObject that holds all lightning visual effects.")]
     [SerializeField]
@@ -184,6 +190,17 @@ public class WeatherManager : MonoBehaviour
         }
         // --------------------------------------------------------
 
+        // Disable player input here, in Start(), after all Awakes have completed.
+        if (playerFlyBehavior != null)
+        {
+            playerFlyBehavior.DisablePlayerInput();
+            Debug.Log("Player input disabled at the start of the game.");
+        }
+        else
+        {
+            Debug.LogError("playerFlyBehavior is null in WeatherManager Start. Cannot disable player input.");
+        }
+
         StartCoroutine(InitialLightningSequence());
     }
 
@@ -226,7 +243,7 @@ public class WeatherManager : MonoBehaviour
             return; // Do not process countdown or final strike logic
         }
 
-        if (countdownStarted)
+        if (countdownStarted && !UIManager.instance.hasStopped)
         {
             currentCountdownTime -= Time.deltaTime;
 
@@ -238,6 +255,7 @@ public class WeatherManager : MonoBehaviour
             // --- IMPORTANT CHANGE: Only check progress if the safe object hasn't been triggered yet ---
             if (!safeObjectSpawnTriggered && currentCountdownTime <= safeObjectSpawnBufferTime)
             {
+                Debug.Log($"Safe Object spawn window entered! Time remaining: {currentCountdownTime:F2} seconds. Progress: {progressTracker.objectsPassed}/{progressTracker.GetEstimatedTotalObjects()}: safeObjectSpawnBufferTime={safeObjectSpawnBufferTime}");
                 // This condition makes sure we only spawn the safe object once
                 // AND that the player has met the progression requirement.
                 if (progressTracker != null && progressTracker.HasMetProgressionRequirement())
@@ -275,6 +293,13 @@ public class WeatherManager : MonoBehaviour
                 StartCoroutine(FinalLightningSequence());
             }
         }
+        else
+        {
+            if (UIManager.instance != null)
+            {
+                UIManager.instance.UpdateTimeDisplay(currentCountdownTime);
+            }
+        }
     }
 
     private void StartCountdown()
@@ -304,8 +329,24 @@ public class WeatherManager : MonoBehaviour
         if (!playerIsCurrentlyInSafeZone)
         {
             yield return StartCoroutine(PerformLightningStrike(initialAndSafeZoneLightningObject, initialLightningDuration));
-        }
 
+            // Trigger Shock after lightning strike.
+            if (animator.GetBool("isShocked") == false)
+            {
+                animator.SetBool("isShocked", true); // Set the shock animation state
+                Debug.Log("Triggering 'isShocked' animation on initial lightning strike.");
+            }
+        }
+        // Allow player to move after initial lightning
+        if (playerFlyBehavior != null)
+        {
+            playerFlyBehavior.EnablePlayerInput();
+            Debug.Log("Player input enabled after initial lightning strike.");
+        }
+        else
+        {
+            Debug.LogWarning("playerFlyBehavior is null, cannot enable player input!");
+        }
         StartCountdown();
     }
 
@@ -321,11 +362,21 @@ public class WeatherManager : MonoBehaviour
         else
         {
             Debug.Log("Player did NOT reach safe zone in time! Game Over scenario.");
+            // Pause Moving Objects
+            if ( playerFlyBehavior != null)
+            {
+                playerFlyBehavior.PauseLevelElements(); // Pause all moving objects in the level
+            }
+            else
+            {
+                Debug.LogWarning("playerFlyBehavior is null, cannot pause moving level objects!");
+            }
 
             if (playerAnimator != null)
             {
-                playerAnimator.SetTrigger("isBurnt");
-                Debug.Log("Triggering 'isBurnt' animation.");
+                playerFlyBehavior.DisablePlayerInput(); // Disable player input to prevent further actions
+                playerAnimator.SetTrigger("isElectricuted");
+                Debug.Log("Triggering 'isElectricuted' animation.");
             }
 
             GameObject lightningToStrikePlayer = null;

@@ -34,7 +34,7 @@ public class UIManager : MonoBehaviour
     private float startTime;
     private float endTime;
     private bool hasStartedMoving = false;
-    private bool hasStopped = false;
+    public bool hasStopped = false;
 
     // We no longer manage countdown time here; WeatherManager will provide it.
     // private float countdownTimeReference; 
@@ -57,7 +57,7 @@ public class UIManager : MonoBehaviour
     private void Start()
     {
         currentScoreText.text = score.ToString();
-        highScoreText.text = PlayerPrefs.GetInt("HighScore", 0).ToString();
+        highScoreText.text = PlayerPrefs.GetInt(SceneManager.GetActiveScene().name + "_HighScore", 0).ToString();
         UpdateHighScore();
 
         // Initialize time display based on mode
@@ -96,9 +96,9 @@ public class UIManager : MonoBehaviour
 
     private void UpdateHighScore()
     {
-        if (score > PlayerPrefs.GetInt("HighScore", 0))
+        if (score > PlayerPrefs.GetInt(SceneManager.GetActiveScene().name + "_HighScore", 0))
         {
-            PlayerPrefs.SetInt("HighScore", score);
+            PlayerPrefs.SetInt(SceneManager.GetActiveScene().name + "_HighScore", score);
             highScoreText.text = score.ToString();
         }
     }
@@ -127,6 +127,7 @@ public class UIManager : MonoBehaviour
     {
         if (displayMode == TimeDisplayMode.TimePassed && !hasStopped)
         {
+            Debug.Log("StopTimer called in UIManager");
             hasStopped = true;
             endTime = Time.time;
             float totalTime = endTime - startTime;

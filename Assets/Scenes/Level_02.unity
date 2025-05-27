@@ -242,8 +242,8 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 0.5}
   m_AnchorMax: {x: 1, y: 0.5}
-  m_AnchoredPosition: {x: 0, y: 15}
-  m_SizeDelta: {x: -720, y: 20}
+  m_AnchoredPosition: {x: 0, y: 0}
+  m_SizeDelta: {x: -760, y: 15}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &34110299
 MonoBehaviour:
@@ -265,7 +265,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_Sprite: {fileID: -1109645456820774316, guid: d27c5274de9fee94ab8e3b6d80f7cabe, type: 3}
+  m_Sprite: {fileID: 1280773799, guid: 9089f7fecb1615b4ea7a77817f00cdf0, type: 3}
   m_Type: 0
   m_PreserveAspect: 0
   m_FillCenter: 1
@@ -1223,6 +1223,7 @@ MonoBehaviour:
   timeTitleText: {fileID: 1059841044}
   defaultTimeTitle: Time Left
   displayMode: 1
+  hasStopped: 0
 --- !u!4 &211142074
 Transform:
   m_ObjectHideFlags: 0
@@ -1915,7 +1916,7 @@ GameObject:
   - component: {fileID: 524589767}
   - component: {fileID: 524589765}
   m_Layer: 0
-  m_Name: PudgyRedBird
+  m_Name: PLAYER_PudgyRedBird
   m_TagString: Player
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -1989,6 +1990,8 @@ MonoBehaviour:
     m_Bits: 64
   isPaused: 0
   hasReachedSafeZone: 0
+  slowMotionTimeScale: 0.5
+  canReceiveInput: 1
 --- !u!50 &524589767
 Rigidbody2D:
   serializedVersion: 5
@@ -2102,7 +2105,7 @@ Transform:
   m_GameObject: {fileID: 524589764}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: -0.1806, z: 0}
+  m_LocalPosition: {x: 0, y: -0.161, z: 0}
   m_LocalScale: {x: 0.75, y: 0.75, z: 0.75}
   m_ConstrainProportionsScale: 0
   m_Children:
@@ -2185,7 +2188,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_Sprite: {fileID: 8181548382722186305, guid: d27c5274de9fee94ab8e3b6d80f7cabe, type: 3}
+  m_Sprite: {fileID: -1231017497, guid: 9089f7fecb1615b4ea7a77817f00cdf0, type: 3}
   m_Type: 0
   m_PreserveAspect: 0
   m_FillCenter: 1
@@ -3548,14 +3551,16 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: e82d6660e7ce3ea44b382dc2b3cfadd1, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  initialStrikeDelay: 0.5
+  initialStrikeDelay: 2
   initialAndSafeZoneLightningObject: {fileID: 559805624}
-  initialLightningDuration: 0.1
-  minCountdownTime: 45
+  initialLightningDuration: 1
+  minCountdownTime: 15
   maxCountdownTime: 60
   objectSpawner: {fileID: 1006136719}
   safeObjectSpawnBufferTime: 6
   playerGameObject: {fileID: 524589764}
+  allowPlayerToMoveOnStart: 1
+  animator: {fileID: 524589768}
   lightningContainerParent: {fileID: 1166520081}
   playerStrikeLightningBolts:
   - {fileID: 196178667}
@@ -3909,6 +3914,7 @@ MonoBehaviour:
   selfDestructTime: 15
   safeObjectPrefab: {fileID: 8123467485194272770, guid: 28b4410da06410044b569fced48f7b5d, type: 3}
   safeObjectYOffset: 0
+  minSafeObjectSpawnDistance: 0.25
   Pause: 0
 --- !u!212 &1006136720
 SpriteRenderer:
@@ -4410,6 +4416,7 @@ MonoBehaviour:
   gameMenuCanvas: {fileID: 167567544}
   gameOverCanvas: {fileID: 1299849242}
   winCanvas: {fileID: 34110297}
+  gameOverScreenDisplayDelay: 1.5
 --- !u!4 &1255741756
 Transform:
   m_ObjectHideFlags: 0
@@ -4593,8 +4600,8 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 0.5}
   m_AnchorMax: {x: 1, y: 0.5}
-  m_AnchoredPosition: {x: 0, y: 15}
-  m_SizeDelta: {x: -720, y: 20}
+  m_AnchoredPosition: {x: 0, y: 0}
+  m_SizeDelta: {x: -720, y: 15}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &1299849244
 MonoBehaviour:
@@ -4616,7 +4623,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_Sprite: {fileID: 8433751597566169029, guid: d27c5274de9fee94ab8e3b6d80f7cabe, type: 3}
+  m_Sprite: {fileID: -311533134, guid: 9089f7fecb1615b4ea7a77817f00cdf0, type: 3}
   m_Type: 0
   m_PreserveAspect: 0
   m_FillCenter: 1
@@ -5221,6 +5228,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   requiredPassPercentage: 0.118
+  initialTimeToFirstObject: 6
   _totalObjectsSpawned: 0
   _objectsPassed: 0
   estimatedTotalObjects: 0
@@ -11959,7 +11967,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   m_Material: {fileID: 0}
-  m_Color: {r: 1, g: 1, b: 1, a: 1}
+  m_Color: {r: 0.6839622, g: 0.83027005, b: 1, a: 1}
   m_RaycastTarget: 1
   m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
   m_Maskable: 1

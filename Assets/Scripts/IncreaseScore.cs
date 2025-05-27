@@ -7,6 +7,16 @@ public class IncreaseScore : MonoBehaviour
         if (collision.CompareTag("Player"))
         {
             UIManager.instance.UpdateScore();
+
+            if (ProgressTracker.Instance != null)
+            {
+                ProgressTracker.Instance.IncrementObjectsPassed();
+            }
+            else
+            {
+                Debug.LogWarning("IncreaseScore: ProgressTracker.Instance is null! Cannot track passed objects.");
+            }
+
             Destroy(gameObject);
         }
     }

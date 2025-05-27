@@ -8,6 +8,7 @@ public class ProgressTracker : MonoBehaviour
     [Tooltip("The minimum percentage of ESTIMATED objects the player must pass for the Safe Object to appear.")]
     [Range(0.0f, 1.0f)]
     [SerializeField] private float requiredPassPercentage = 0.7f;
+    [SerializeField] private int initialTimeToFirstObject = 0; // Backing field for initial time to first object
 
     [Header("Debug Info (Read Only)")]
     [SerializeField] private int _totalObjectsSpawned = 0; // Changed to private backing field
@@ -71,7 +72,8 @@ public class ProgressTracker : MonoBehaviour
             float avgSpawnInterval = (spawner.minSpawnInterval + spawner.maxSpawnInterval) / 2f;
             if (avgSpawnInterval > 0)
             {
-                estimatedTotalObjects = Mathf.Max(1, Mathf.CeilToInt(initialCountdownDuration / avgSpawnInterval));
+                estimatedTotalObjects = Mathf.Max(1, Mathf.CeilToInt(initialCountdownDuration - initialTimeToFirstObject  / avgSpawnInterval));
+                Debug.Log($"ProgressionTracker: Reset. Estimated Total Objects based on spawn interval: {estimatedTotalObjects} (Initial Countdown Duration: {initialCountdownDuration}, Avg Spawn Interval: {avgSpawnInterval})");
             }
             else
             {
