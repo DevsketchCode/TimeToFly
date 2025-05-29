@@ -8,6 +8,14 @@ public class WeatherManager : MonoBehaviour
     // NEW: Singleton instance for easy access
     public static WeatherManager instance;
 
+    [Header("WeatherManager Settings")]
+    [Tooltip("Turn On/Off the Weather Manager")]
+    [SerializeField]
+    public bool _weatherIsUsed = false;
+    [Tooltip("Turn On/Off the Lightning/Dark Clouds")]
+    [SerializeField]
+    public bool _isStorm = false;
+
     [Header("Initial Lightning Strike")]
     [Tooltip("Time to wait before the first lightning strike occurs at the level start.")]
     [SerializeField]
@@ -130,78 +138,87 @@ public class WeatherManager : MonoBehaviour
 
     void Start()
     {
-        // Get references
-        if (playerGameObject != null)
+        if (_weatherIsUsed)
         {
-            playerFlyBehavior = playerGameObject.GetComponent<FlyBehavior>();
-            playerAnimator = playerGameObject.GetComponent<Animator>();
-            if (playerFlyBehavior == null)
+            // Get references
+            if (playerGameObject != null)
             {
-                Debug.LogError("FlyBehavior not found on playerGameObject!");
+                playerFlyBehavior = playerGameObject.GetComponent<FlyBehavior>();
+                playerAnimator = playerGameObject.GetComponent<Animator>();
+                if (playerFlyBehavior == null)
+                {
+                    Debug.LogError("FlyBehavior not found on playerGameObject!");
+                }
+                if (playerAnimator == null)
+                {
+                    Debug.LogError("Animator not found on playerGameObject!");
+                }
             }
-            if (playerAnimator == null)
+            else
             {
-                Debug.LogError("Animator not found on playerGameObject!");
-            }
-        }
-        else
-        {
-            Debug.LogError("Player GameObject not assigned in WeatherManager!");
-            enabled = false;
-            return;
-        }
-
-        if (objectSpawner == null)
-        {
-            objectSpawner = FindObjectOfType<ObjectSpawner>();
-            if (objectSpawner == null)
-            {
-                Debug.LogError("ObjectSpawner not assigned and not found in scene for WeatherManager!");
+                Debug.LogError("Player GameObject not assigned in WeatherManager!");
                 enabled = false;
                 return;
             }
-        }
 
-        progressTracker = ProgressTracker.Instance;
-        if (progressTracker == null)
-        {
-            Debug.LogError("ProgressTracker instance not found! Please ensure it's in the scene.");
-            enabled = false;
-            return;
-        }
+            if (objectSpawner == null)
+            {
+                objectSpawner = FindObjectOfType<ObjectSpawner>();
+                if (objectSpawner == null)
+                {
+                    Debug.LogError("ObjectSpawner not assigned and not found in scene for WeatherManager!");
+                    enabled = false;
+                    return;
+                }
+            }
 
-        // --- Deactivate all lightning objects initially ---
-        if (lightningContainerParent != null)
-        {
-            lightningContainerParent.SetActive(false); // Deactivate the main parent
-        }
-        else
-        {
-            Debug.LogError("Lightning Container Parent not assigned in WeatherManager!");
-            enabled = false;
-            return;
-        }
+            progressTracker = ProgressTracker.Instance;
+            if (progressTracker == null)
+            {
+                Debug.LogError("ProgressTracker instance not found! Please ensure it's in the scene.");
+                enabled = false;
+                return;
+            }
 
-        // Ensure all individual lightning visuals are turned off
-        if (initialAndSafeZoneLightningObject != null) initialAndSafeZoneLightningObject.SetActive(false);
-        foreach (GameObject lb in playerStrikeLightningBolts)
-        {
-            if (lb != null) lb.SetActive(false);
-        }
-        // --------------------------------------------------------
+            // --- Deactivate all lightning objects initially ---
+            if (_isStorm)
+            { 
+                if (lightningContainerParent != null)
+                {
+                    lightningContainerParent.SetActive(false); // Deactivate the main parent
+                }
+                else
+                {
+                    Debug.LogError("Lightning Container Parent not assigned in WeatherManager!");
+                    enabled = false;
+                    return;
+                }
 
-        // Disable player input here, in Start(), after all Awakes have completed.
-        if (playerFlyBehavior != null)
-        {
-            playerFlyBehavior.DisablePlayerInput();
-            Debug.Log("Player input disabled at the start of the game.");
-        }
-        else
-        {
-            Debug.LogError("playerFlyBehavior is null in WeatherManager Start. Cannot disable player input.");
-        }
+                // Ensure all individual lightning visuals are turned off
+                if (initialAndSafeZoneLightningObject != null) initialAndSafeZoneLightningObject.SetActive(false);
+                foreach (GameObject lb in playerStrikeLightningBolts)
+                {
+                    if (lb != null) lb.SetActive(false);
+                }
+                // --------------------------------------------------------
+            }
 
-        StartCoroutine(InitialLightningSequence());
+            // Disable player input here, in Start(), after all Awakes have completed.
+            if (playerFlyBehavior != null)
+            {
+                playerFlyBehavior.DisablePlayerInput();
+                Debug.Log("Player input disabled at the start of the game.");
+            }
+            else
+            {
+                Debug.LogError("playerFlyBehavior is null in WeatherManager Start. Cannot disable player input.");
+            }
+
+            if (_isStorm)
+            {
+                StartCoroutine(InitialLightningSequence());
+            }
+        }
     }
 
     public void SetPlayerSafeZoneStatus(bool isSafe)
@@ -234,71 +251,78 @@ public class WeatherManager : MonoBehaviour
 
     void Update()
     {
-        if (playerIsCurrentlyInSafeZone || (GameManager.instance != null && GameManager.instance.IsGameWon()))
+        if (_weatherIsUsed)
         {
-            if (UIManager.instance != null)
+            if (playerIsCurrentlyInSafeZone || (GameManager.instance != null && GameManager.instance.IsGameWon()))
             {
-                UIManager.instance.UpdateTimeDisplay(0f);
-            }
-            return; // Do not process countdown or final strike logic
-        }
-
-        if (countdownStarted && !UIManager.instance.hasStopped)
-        {
-            currentCountdownTime -= Time.deltaTime;
-
-            if (UIManager.instance != null)
-            {
-                UIManager.instance.UpdateTimeDisplay(currentCountdownTime);
-            }
-
-            // --- IMPORTANT CHANGE: Only check progress if the safe object hasn't been triggered yet ---
-            if (!safeObjectSpawnTriggered && currentCountdownTime <= safeObjectSpawnBufferTime)
-            {
-                Debug.Log($"Safe Object spawn window entered! Time remaining: {currentCountdownTime:F2} seconds. Progress: {progressTracker.objectsPassed}/{progressTracker.GetEstimatedTotalObjects()}: safeObjectSpawnBufferTime={safeObjectSpawnBufferTime}");
-                // This condition makes sure we only spawn the safe object once
-                // AND that the player has met the progression requirement.
-                if (progressTracker != null && progressTracker.HasMetProgressionRequirement())
+                if (UIManager.instance != null)
                 {
-                    if (objectSpawner != null)
+                    UIManager.instance.UpdateTimeDisplay(0f);
+                }
+                return; // Do not process countdown or final strike logic
+            }
+
+            if (countdownStarted && !UIManager.instance.hasStopped)
+            {
+                currentCountdownTime -= Time.deltaTime;
+
+                if (UIManager.instance != null)
+                {
+                    UIManager.instance.UpdateTimeDisplay(currentCountdownTime);
+                }
+
+                // --- IMPORTANT CHANGE: Only check progress if the safe object hasn't been triggered yet ---
+                if (!safeObjectSpawnTriggered && currentCountdownTime <= safeObjectSpawnBufferTime)
+                {
+                    Debug.Log($"Safe Object spawn window entered! Time remaining: {currentCountdownTime:F2} seconds. Progress: {progressTracker.objectsPassed}/{progressTracker.GetEstimatedTotalObjects()}: safeObjectSpawnBufferTime={safeObjectSpawnBufferTime}");
+                    // This condition makes sure we only spawn the safe object once
+                    // AND that the player has met the progression requirement.
+                    if (progressTracker != null && progressTracker.HasMetProgressionRequirement())
                     {
-                        objectSpawner.SpawnSafeObject();
-                        safeObjectSpawnTriggered = true;
-                        ShouldStopRegularSpawns = true; // NEW: Tell the spawner to stop regular items
-                        Debug.Log($"Safe Object spawn triggered! Time remaining: {currentCountdownTime:F2}. Regular spawns halted.");
+                        if (objectSpawner != null)
+                        {
+                            objectSpawner.SpawnSafeObject();
+                            safeObjectSpawnTriggered = true;
+                            ShouldStopRegularSpawns = true; // NEW: Tell the spawner to stop regular items
+                            Debug.Log($"Safe Object spawn triggered! Time remaining: {currentCountdownTime:F2}. Regular spawns halted.");
+                        }
+                        else
+                        {
+                            Debug.LogError("ObjectSpawner is null, cannot spawn Safe Object!");
+                        }
                     }
                     else
                     {
-                        Debug.LogError("ObjectSpawner is null, cannot spawn Safe Object!");
+                        // This means we're in the time window for the safe object, but progress isn't met.
+                        // This is where you might want to consider the "larger gap" or "no other spawns"
+                        // logic to prevent unfair deaths if progression isn't met.
+                        // If progress is NOT met, we still want to stop regular spawns
+                        // to give the player a chance to get the required progress before the end.
+                        if (!ShouldStopRegularSpawns) // Prevent redundant setting
+                        {
+                            ShouldStopRegularSpawns = true; // NEW: Halt regular spawns even if progress isn't met yet
+                            Debug.Log($"Safe Object spawn window entered. Regular spawns halted. Progress not yet met: {progressTracker.objectsPassed}/{progressTracker.GetEstimatedTotalObjects()}.");
+                        }
                     }
                 }
-                else
+
+                if (currentCountdownTime <= 0)
                 {
-                    // This means we're in the time window for the safe object, but progress isn't met.
-                    // This is where you might want to consider the "larger gap" or "no other spawns"
-                    // logic to prevent unfair deaths if progression isn't met.
-                    // If progress is NOT met, we still want to stop regular spawns
-                    // to give the player a chance to get the required progress before the end.
-                    if (!ShouldStopRegularSpawns) // Prevent redundant setting
-                    {
-                        ShouldStopRegularSpawns = true; // NEW: Halt regular spawns even if progress isn't met yet
-                        Debug.Log($"Safe Object spawn window entered. Regular spawns halted. Progress not yet met: {progressTracker.objectsPassed}/{progressTracker.GetEstimatedTotalObjects()}.");
-                    }
+                    countdownStarted = false;
+                    StartCoroutine(FinalLightningSequence());
                 }
             }
-
-            if (currentCountdownTime <= 0)
+            else
             {
-                countdownStarted = false;
-                StartCoroutine(FinalLightningSequence());
+                if (UIManager.instance != null)
+                {
+                    UIManager.instance.UpdateTimeDisplay(currentCountdownTime);
+                }
             }
         }
         else
         {
-            if (UIManager.instance != null)
-            {
-                UIManager.instance.UpdateTimeDisplay(currentCountdownTime);
-            }
+            Debug.LogWarning("WeatherManager is not used in this scene. Skipping weather updates.");
         }
     }
 
@@ -492,6 +516,9 @@ public class WeatherManager : MonoBehaviour
             Debug.LogWarning("ObjectSpawner is null during WeatherManager ResetWeather. Cannot reset spawner.");
         }
 
-        StartCoroutine(InitialLightningSequence());
+        if (_isStorm)
+        {
+            StartCoroutine(InitialLightningSequence());
+        }
     }
 }

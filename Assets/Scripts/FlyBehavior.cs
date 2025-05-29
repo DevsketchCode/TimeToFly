@@ -188,18 +188,18 @@ public class FlyBehavior : MonoBehaviour
         HandleAnimation();
     }
 
-    private void OnTriggerEnter2D(Collider2D other)
+    private void OnTriggerEnter2D(Collider2D collider)
     {
-        Debug.Log("Trigger entered by: " + other.gameObject.name + " Tag: " + other.gameObject.tag);
+        Debug.Log("Trigger entered by: " + collider.gameObject.name + " Tag: " + collider.gameObject.tag);
         // Ensure that "DangerousObstacle" and "SelfDestruct" (which seems to be an instant kill)
         // trigger the immediate stop and Game Over.
-        if (other.gameObject.CompareTag("DangerousObstacle") || other.gameObject.CompareTag("SelfDestruct"))
+        if (collider.gameObject.CompareTag("DangerousObstacle") || collider.gameObject.CompareTag("SelfDestruct"))
         {
-            HandleDeathCondition(); // Call the dedicated death handler
+            HandleDeathCondition(collider.gameObject); // Call the dedicated death handler
         }
-        else if (other.gameObject.CompareTag("Obstacle") || other.gameObject.CompareTag("ObstacleNoPause"))
+        else if (collider.gameObject.CompareTag("Obstacle") || collider.gameObject.CompareTag("ObstacleNoPause"))
         {
-            if (other.gameObject.name == "Ground")
+            if (collider.gameObject.name == "Ground")
             {
                 isOnGround = true;
                 currentlyFlying = false;
@@ -212,26 +212,26 @@ public class FlyBehavior : MonoBehaviour
                 return;
             }
 
-            if (other.gameObject.layer == LayerMask.NameToLayer("Obstacles") && other.gameObject.CompareTag("LeftBounceCollider"))
+            if (collider.gameObject.layer == LayerMask.NameToLayer("Obstacles") && collider.gameObject.CompareTag("LeftBounceCollider"))
             {
-                Debug.Log("Bouncing off LeftBounceCollider (Trigger): Tag:" + other.gameObject.tag);
+                Debug.Log("Bouncing off LeftBounceCollider (Trigger): Tag:" + collider.gameObject.tag);
                 isCollidingWithObstacle = true;
                 StartCoroutine(HandleObstacleCollision()); // This handles pause/unpause internally
                 return;
             }
 
-            if (!other.gameObject.CompareTag("ObstacleNoPause"))
+            if (!collider.gameObject.CompareTag("ObstacleNoPause"))
             {
                 isCollidingWithObstacle = true;
                 PauseLevelElements(); // This calls the pause logic
             }
         }
-        else if (other.gameObject.CompareTag("Proceed"))
+        else if (collider.gameObject.CompareTag("Proceed"))
         {
             Debug.Log("Proceeding Forward (Trigger)");
             UnpauseLevelElements(); // This calls the unpause logic
         }
-        else if (other.gameObject.CompareTag("SafeZone"))
+        else if (collider.gameObject.CompareTag("SafeZone"))
         {
             hasReachedSafeZone = true;
 
@@ -271,17 +271,17 @@ public class FlyBehavior : MonoBehaviour
         }
     }
 
-    private void OnCollisionEnter2D(Collision2D collision)
+    private void OnCollisionEnter2D(Collision2D collider)
     {
-        Debug.Log("Collision with: " + collision.gameObject.name + " Tag: " + collision.gameObject.tag);
+        Debug.Log("Collision with: " + collider.gameObject.name + " Tag: " + collider.gameObject.tag);
 
-        if (collision.gameObject.CompareTag("DangerousObstacle"))
+        if (collider.gameObject.CompareTag("DangerousObstacle"))
         {
-            HandleDeathCondition(); // Call the dedicated death handler
+            HandleDeathCondition(collider.gameObject); // Call the dedicated death handler
         }
-        else if (collision.gameObject.CompareTag("Obstacle") || collision.gameObject.CompareTag("ObstacleNoPause"))
+        else if (collider.gameObject.CompareTag("Obstacle") || collider.gameObject.CompareTag("ObstacleNoPause"))
         {
-            if (collision.gameObject.name == "Ground")
+            if (collider.gameObject.name == "Ground")
             {
                 isOnGround = true;
                 currentlyFlying = false;
@@ -293,7 +293,7 @@ public class FlyBehavior : MonoBehaviour
                 }
                 return;
             }
-            if (!collision.gameObject.CompareTag("LeftBounceCollider"))
+            if (!collider.gameObject.CompareTag("LeftBounceCollider"))
             {
                 isCollidingWithObstacle = true;
                 PauseLevelElements(); // This calls the pause logic
@@ -301,11 +301,11 @@ public class FlyBehavior : MonoBehaviour
         }
     }
 
-    private void OnCollisionExit2D(Collision2D collision)
+    private void OnCollisionExit2D(Collision2D collider)
     {
-        if (collision.gameObject.CompareTag("Obstacle"))
+        if (collider.gameObject.CompareTag("Obstacle"))
         {
-            if (collision.gameObject.name == "Ground")
+            if (collider.gameObject.name == "Ground")
             {
                 isOnGround = false;
                 currentlyFlying = true; // Player is now in air (jumping/falling)
@@ -320,8 +320,8 @@ public class FlyBehavior : MonoBehaviour
             isCollidingWithObstacle = false;
             float playerBottom = GetComponent<Collider2D>().bounds.min.y;
             float playerTop = GetComponent<Collider2D>().bounds.max.y;
-            float obstacleBottom = collision.collider.bounds.min.y;
-            float obstacleTop = collision.collider.bounds.max.y;
+            float obstacleBottom = collider.collider.bounds.min.y;
+            float obstacleTop = collider.collider.bounds.max.y;
 
             bool leavingTopOrBottom = (playerBottom > obstacleTop + 0.05f || playerTop < obstacleBottom - 0.05f);
 
@@ -339,7 +339,7 @@ public class FlyBehavior : MonoBehaviour
     }
 
     // New helper method to centralize death handling logic
-    private void HandleDeathCondition()
+    private void HandleDeathCondition(GameObject obstacleObject)
     {
         // Only proceed if the game isn't already in a game over state
         // This prevents multiple Game Over calls if multiple hazardous objects are hit rapidly
@@ -376,7 +376,14 @@ public class FlyBehavior : MonoBehaviour
         }
         animator.SetBool("isFlying", false); // Ensure flying animation is off
 
-        animator.SetBool("hitDangerousObstacle", true); // Trigger death animation
+        if (obstacleObject.GetComponent<DangerousObstacle>().GetObstacleType() == DangerousObstacle.DangersousObstacleType.Electrical)
+        {
+            animator.SetBool("isElectricuted", true); // Trigger shock animation
+        }
+        else
+        {
+            animator.SetBool("hitDangerousObstacle", true); // Trigger death animation
+        }
 
         if (GameManager.instance != null)
         {
