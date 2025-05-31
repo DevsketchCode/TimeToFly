@@ -63,6 +63,7 @@
   <ItemGroup>
     <Compile Include="Assets\Scripts\IncreaseScore.cs" />
     <Compile Include="Assets\Scripts\DestroyOffscreen.cs" />
+    <Compile Include="Assets\Scripts\FlickerLight.cs" />
     <Compile Include="Assets\Scripts\FlyBehavior.cs" />
     <Compile Include="Assets\Scripts\BackgroundScroller.cs" />
     <Compile Include="Assets\Scripts\AudioManager.cs" />

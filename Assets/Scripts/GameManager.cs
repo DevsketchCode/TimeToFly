@@ -34,6 +34,7 @@ public class GameManager : MonoBehaviour
         if (instance == null)
         {
             instance = this;
+            Time.timeScale = 1f;
             // Optional: If you want GameManager to persist across scenes, use DontDestroyOnLoad
             // DontDestroyOnLoad(gameObject);
         }
@@ -58,6 +59,7 @@ public class GameManager : MonoBehaviour
 
         if (!string.IsNullOrEmpty(sceneName))
         {
+            Time.timeScale = 1f;
             SceneManager.LoadScene(sceneName); // Use the fully qualified name to avoid conflict
             Debug.Log($"Loading scene: {sceneName}");
         }
