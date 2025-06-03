@@ -8,55 +8,62 @@ public class MoveObject : MonoBehaviour
     [SerializeField]
     public bool Pause = false;
 
-    private LevelManager levelManager;
 
-    private void Start()
-    {
-        // Find the LevelManager instance in the scene
-        levelManager = FindObjectOfType<LevelManager>();
-        if (levelManager == null)
-        {
-            Debug.LogError("LevelManager not found in the scene!");
-            enabled = false; // Disable this script if LevelManager is missing
-            return;
-        }
-        speed = levelManager.objectSpeed; // Get the object speed from LevelManager
-    }
+    // The Start(), Update(), PauseMovement(), MoveRightTemporarily(),
+    // MoveRightRoutine(), and SetSpeed() methods are all removed as they pertain to movement.
 
-    private void Update()
-    {
-        if (!Pause && !isMovingRightTemporarily)
-        {
-            transform.position += Vector3.left * speed * Time.deltaTime;
-        }
-        else if (isMovingRightTemporarily)
-        {
-            transform.position += Vector3.right * speed * Time.deltaTime; // Move right at the same speed
-        }
-    }
+    // If you need to check the 'Pause' status from another script, you can still access it.
+    // For example, SelfDestruct could check if its MoveObject.Pause is true.
 
-    public void PauseMovement(bool pause)
-    {
-        Pause = pause;
-    }
+    //private LevelManager levelManager;
 
-    private bool isMovingRightTemporarily = false;
+    //private void Start()
+    //{
+    //    // Find the LevelManager instance in the scene
+    //    levelManager = FindObjectOfType<LevelManager>();
+    //    if (levelManager == null)
+    //    {
+    //        Debug.LogError("LevelManager not found in the scene!");
+    //        enabled = false; // Disable this script if LevelManager is missing
+    //        return;
+    //    }
+    //    speed = levelManager.objectSpeed; // Get the object speed from LevelManager
+    //}
 
-    public void MoveRightTemporarily(float duration)
-    {
-        StartCoroutine(MoveRightRoutine(duration));
-    }
+    //private void Update()
+    //{
+    //    if (!Pause && !isMovingRightTemporarily)
+    //    {
+    //        transform.position += Vector3.left * speed * Time.deltaTime;
+    //    }
+    //    else if (isMovingRightTemporarily)
+    //    {
+    //        transform.position += Vector3.right * speed * Time.deltaTime; // Move right at the same speed
+    //    }
+    //}
 
-    private IEnumerator MoveRightRoutine(float duration)
-    {
-        isMovingRightTemporarily = true;
-        yield return new WaitForSeconds(duration);
-        isMovingRightTemporarily = false;
-    }
+    //public void PauseMovement(bool pause)
+    //{
+    //    Pause = pause;
+    //}
 
-    // Optional: If you still want to set speed externally for specific MoveObjects
-    public void SetSpeed(float newSpeed)
-    {
-        speed = newSpeed;
-    }
+    //private bool isMovingRightTemporarily = false;
+
+    //public void MoveRightTemporarily(float duration)
+    //{
+    //    StartCoroutine(MoveRightRoutine(duration));
+    //}
+
+    //private IEnumerator MoveRightRoutine(float duration)
+    //{
+    //    isMovingRightTemporarily = true;
+    //    yield return new WaitForSeconds(duration);
+    //    isMovingRightTemporarily = false;
+    //}
+
+    //// Optional: If you still want to set speed externally for specific MoveObjects
+    //public void SetSpeed(float newSpeed)
+    //{
+    //    speed = newSpeed;
+    //}
 }

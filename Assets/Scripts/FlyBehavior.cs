@@ -12,6 +12,9 @@ public class FlyBehavior : MonoBehaviour
     private float jumpForce = 5f;
 
     [SerializeField]
+    public float forwardSpeed = 0.1f; // NEW: Player's forward movement speed
+
+    [SerializeField]
     private float pausedJumpForce = 2f;
 
     [SerializeField]
@@ -72,6 +75,7 @@ public class FlyBehavior : MonoBehaviour
     private float flyingTimer; // Timer for the coyote time
 
     private LevelManager levelManager;
+    private ObjectSpawner objectSpawner; // NEW: Reference to ObjectSpawner
 
     // NEW: Singleton Awake method
     void Awake()
@@ -104,6 +108,12 @@ public class FlyBehavior : MonoBehaviour
             enabled = false;
         }
 
+        objectSpawner = FindObjectOfType<ObjectSpawner>(); // NEW: Get reference to ObjectSpawner
+        if (objectSpawner == null)
+        {
+            Debug.LogWarning("ObjectSpawner not found in the scene! Player won't move spawner.");
+        }
+
         flyingTimer = 0f;
 
         playerAudio = GetComponent<Audio_Player>();
@@ -118,6 +128,7 @@ public class FlyBehavior : MonoBehaviour
         if (CloudSpawner.instance != null)
         {
             CloudSpawner.instance.SetCloudSpeedBoost(true);
+            CloudSpawner.instance.Pause = false; // Ensure spawner is NOT paused at start
         }
         // --- End Initial State ---
 
@@ -145,6 +156,7 @@ public class FlyBehavior : MonoBehaviour
         if (!isPaused && canReceiveInput && jumpAction.WasPerformedThisFrame())
         {
             rb.AddForce(Vector2.up * jumpForce, ForceMode2D.Impulse);
+
             currentlyFlying = true;
             flyingTimer = flyingCoyoteTime;
 
@@ -184,8 +196,43 @@ public class FlyBehavior : MonoBehaviour
 
     private void FixedUpdate()
     {
+        // Apply rotation based on vertical velocity
         transform.rotation = Quaternion.Euler(0, 0, rb.linearVelocity.y * rotationSpeed);
+
+        // Handle player animation states
         HandleAnimation();
+
+        // Player's continuous forward movement logic
+        // This block only executes if the game is not paused, input is enabled,
+        // GameManager instance exists, and the game is not in a Game Over state.
+        if (!isPaused && canReceiveInput && GameManager.instance != null && !GameManager.instance.IsGameOver())
+        {
+            // If the player hasn't "moved" yet, mark them as having moved now.
+            // This flag signals the start of the game's actual progression.
+            if (!hasMoved)
+            {
+                hasMoved = true;
+                // Optionally start the UI timer here, aligning it with the player's first forward movement.
+                if (UIManager.instance != null)
+                {
+                    UIManager.instance.StartTimer();
+                }
+            }
+
+            // Move the player character continuously forward
+            transform.Translate(Vector2.right * forwardSpeed * Time.fixedDeltaTime);
+
+            // Synchronize the ObjectSpawner's X position with the player's forward movement.
+            // This creates the effect of the level "scrolling" with the player.
+            if (objectSpawner != null)
+            {
+                objectSpawner.transform.position = new Vector3(
+                    objectSpawner.transform.position.x + (forwardSpeed * Time.fixedDeltaTime),
+                    objectSpawner.transform.position.y, // Keep Y position as is
+                    objectSpawner.transform.position.z
+                );
+            }
+        }
     }
 
     private void OnTriggerEnter2D(Collider2D collider)
@@ -400,25 +447,11 @@ public class FlyBehavior : MonoBehaviour
         isBouncing = true;
         PauseLevelElements(); // This calls the pause logic and will also set clouds to normal speed
 
-        GameObject[] allObjects = FindObjectsOfType<GameObject>();
-        foreach (GameObject obj in allObjects)
-        {
-            if (!obj.CompareTag(playerTag))
-            {
-                if (obj.TryGetComponent<BackgroundScroller>(out var loop))
-                {
-                    loop.ScrollRightTemporarily(bounceDuration);
-                }
-                if (obj.TryGetComponent<MoveObject>(out var move))
-                {
-                    move.MoveRightTemporarily(bounceDuration);
-                }
-                if (obj.TryGetComponent<ObjectSpawner>(out var spawner))
-                {
-                    spawner.AddBounceDelay(bounceDuration);
-                }
-            }
-        }
+        // For this new movement style, the objects themselves won't move right temporarily.
+        // Instead, the player and spawner pause their forward movement.
+        // So, the 'ScrollRightTemporarily' and 'MoveRightTemporarily' calls are no longer relevant
+        // if objects are stationary and the camera follows the player.
+        // We only need the pause effect here.
 
         yield return new WaitForSeconds(bounceDuration);
 
@@ -516,12 +549,9 @@ public class FlyBehavior : MonoBehaviour
             os.Pause = true;
         }
 
-        // Pause MoveObjects (obstacles, etc.)
-        MoveObject[] moveObjects = FindObjectsOfType<MoveObject>();
-        foreach (MoveObject mo in moveObjects)
-        {
-            mo.Pause = true;
-        }
+        // MoveObjects (obstacles, etc.) should not be paused if they are now stationary.
+        // If they *were* moving before, they should simply stop moving.
+        // We remove the iteration over MoveObjects because they are now stationary.
 
         // Pause SelfDestruct components (if they should stop their countdowns)
         SelfDestruct[] selfDestructs = FindObjectsOfType<SelfDestruct>();
@@ -534,6 +564,7 @@ public class FlyBehavior : MonoBehaviour
         if (CloudSpawner.instance != null)
         {
             CloudSpawner.instance.SetCloudSpeedBoost(false); // Set clouds to normal speed
+            CloudSpawner.instance.Pause = true; // NEW: Pause CloudSpawner
         }
     }
 
@@ -554,12 +585,8 @@ public class FlyBehavior : MonoBehaviour
             os.Pause = false;
         }
 
-        // Unpause MoveObjects
-        MoveObject[] moveObjects = FindObjectsOfType<MoveObject>();
-        foreach (MoveObject mo in moveObjects)
-        {
-            mo.Pause = false;
-        }
+        // MoveObjects (obstacles, etc.) should not be unpaused if they are now stationary.
+        // We remove the iteration over MoveObjects here.
 
         // Unpause SelfDestruct components
         SelfDestruct[] selfDestructs = FindObjectsOfType<SelfDestruct>();
@@ -572,6 +599,7 @@ public class FlyBehavior : MonoBehaviour
         if (CloudSpawner.instance != null)
         {
             CloudSpawner.instance.SetCloudSpeedBoost(true); // Set clouds to faster speed
+            CloudSpawner.instance.Pause = false; // NEW: Unpause CloudSpawner
         }
     }
 

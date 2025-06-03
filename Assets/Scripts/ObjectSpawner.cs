@@ -1,5 +1,5 @@
 using UnityEngine;
-using Random = UnityEngine.Random;
+using Random = UnityEngine.Random; // Explicitly use UnityEngine.Random
 
 public class ObjectSpawner : MonoBehaviour
 {
@@ -14,8 +14,7 @@ public class ObjectSpawner : MonoBehaviour
     public float maxSpawnInterval;
 
     [Header("Object Spawn Settings")]
-    [SerializeField]
-    public GameObject objectSpawner; // This is the GameObject that defines the spawn X position
+    // REMOVED: public GameObject objectSpawner; // This is now THIS GameObject's transform
 
     [SerializeField]
     private float heightRange = 0.45f; // Range for random vertical offset when spawning
@@ -42,8 +41,8 @@ public class ObjectSpawner : MonoBehaviour
     public bool Pause = false;
 
     private float spawnTimer;
-    private GameObject spawnedObjectInstance; // Reference to the last spawned random object
-    private LevelManager levelManager;
+    private GameObject spawnedObjectInstance; // Reference to the last spawned random object (used for its bounds calculation)
+    private LevelManager levelManager; // Still needed for overall game state/rules
     private ProgressTracker progressTracker; // Reference to the new ProgressTracker
     private WeatherManager weatherManager; // NEW: Reference to WeatherManager
 
@@ -60,7 +59,7 @@ public class ObjectSpawner : MonoBehaviour
             return;
         }
 
-        progressTracker = ProgressTracker.Instance;
+        progressTracker = ProgressTracker.Instance; // Assuming ProgressTracker is a Singleton
         if (progressTracker == null)
         {
             Debug.LogError("ProgressTracker instance not found! Please ensure it's in the scene.");
@@ -68,7 +67,7 @@ public class ObjectSpawner : MonoBehaviour
             return;
         }
 
-        weatherManager = WeatherManager.instance;
+        weatherManager = WeatherManager.instance; // Assuming WeatherManager is a Singleton
         if (weatherManager == null)
         {
             Debug.LogError("WeatherManager instance not found! ObjectSpawner cannot function correctly without it.");
@@ -76,17 +75,24 @@ public class ObjectSpawner : MonoBehaviour
             return;
         }
 
+        // Initially set lastSpawnedRegularObjectRightX to the spawner's current X position
+        // This ensures the first object spawns correctly relative to the spawner's start.
+        lastSpawnedRegularObjectRightX = transform.position.x;
+
         SpawnObject(); // Spawn an object immediately at the start
         ResetSpawnTimer(); // Set a random initial spawn delay
     }
 
     private void Update()
     {
+        // The spawner's X position is now updated by FlyBehavior, so no movement logic here.
+
         if (Pause) // If spawner is paused, do nothing
         {
             return;
         }
 
+        // Only spawn regular objects if WeatherManager allows it
         if (weatherManager.ShouldStopRegularSpawns)
         {
             return; // Don't spawn any regular objects
@@ -115,7 +121,8 @@ public class ObjectSpawner : MonoBehaviour
             GameObject prefabToInstantiate = prefabsToSpawn[randomIndex];
 
             float randomVerticalOffset = Random.Range(-heightRange, heightRange);
-            Vector3 spawnPosition = new Vector3(objectSpawner.transform.position.x, objectSpawner.transform.position.y, 0f) + new Vector3(0f, randomVerticalOffset, 0f);
+            // Spawn position is now relative to this spawner's current X and a random Y
+            Vector3 spawnPosition = new Vector3(transform.position.x, transform.position.y, 0f) + new Vector3(0f, randomVerticalOffset, 0f);
 
             spawnedObjectInstance = Instantiate(prefabToInstantiate, spawnPosition, Quaternion.identity);
 
@@ -130,10 +137,11 @@ public class ObjectSpawner : MonoBehaviour
             else
             {
                 // Fallback if no collider, or if you know the typical width of your obstacles
-                Debug.LogWarning("Spawned object " + prefabToInstantiate.name + " has no Collider2D. Cannot accurately determine its right edge for safe zone spacing.");
-                lastSpawnedRegularObjectRightX = spawnedObjectInstance.transform.position.x + 0.5f; // Estimate a width if no collider
+                Debug.LogWarning("Spawned object " + prefabToInstantiate.name + " has no Collider2D. Cannot accurately determine its right edge for safe zone spacing. Using approximate.");
+                // A very rough estimate based on the prefab's local position + a standard width.
+                // You might need to adjust '0.5f' based on your object's typical size.
+                lastSpawnedRegularObjectRightX = spawnedObjectInstance.transform.position.x + 0.5f;
             }
-
 
             if (progressTracker != null)
             {
@@ -142,24 +150,29 @@ public class ObjectSpawner : MonoBehaviour
 
             Debug.Log("Spawned: " + prefabToInstantiate.name + " at " + spawnPosition + " at time: " + Time.time);
 
-            MoveObject moveObject = spawnedObjectInstance.GetComponent<MoveObject>();
-            if (moveObject != null && levelManager != null)
-            {
-                moveObject.SetSpeed(levelManager.objectSpeed);
-            }
-            else if (moveObject == null)
-            {
-                Debug.LogWarning("Spawned object " + prefabToInstantiate.name + " does not have a MoveObject script.");
-            }
-            else if (levelManager == null)
-            {
-                Debug.LogError("LevelManager is null in ObjectSpawner, cannot set object speed.");
-            }
+            // REMOVED: No longer setting speed on MoveObject, as objects are stationary.
+            // MoveObject moveObject = spawnedObjectInstance.GetComponent<MoveObject>();
+            // if (moveObject != null && levelManager != null)
+            // {
+            //     moveObject.SetSpeed(levelManager.objectSpeed);
+            // }
+            // else if (moveObject == null)
+            // {
+            //     Debug.LogWarning("Spawned object " + prefabToInstantiate.name + " does not have a MoveObject script (expected for stationary objects).");
+            // }
+            // else if (levelManager == null)
+            // {
+            //     Debug.LogError("LevelManager is null in ObjectSpawner, cannot set object speed.");
+            // }
 
             SelfDestruct selfDestruct = spawnedObjectInstance.GetComponent<SelfDestruct>();
             if (selfDestruct != null && selfDestructTime > 0)
             {
                 selfDestruct.SetLifeTime(selfDestructTime);
+            }
+            else if (selfDestruct == null)
+            {
+                Debug.LogWarning("Spawned object " + prefabToInstantiate.name + " does not have a SelfDestruct script.");
             }
         }
         else
@@ -176,24 +189,27 @@ public class ObjectSpawner : MonoBehaviour
     public void PauseSpawner(bool pause)
     {
         Pause = pause;
-        if (spawnedObjectInstance != null)
-        {
-            MoveObject moveObject = spawnedObjectInstance.GetComponent<MoveObject>();
-            if (moveObject != null)
-            {
-                moveObject.PauseMovement(pause);
-            }
+        // REMOVED: No longer pausing individual spawned objects via MoveObject, as they are stationary.
+        // if (spawnedObjectInstance != null)
+        // {
+        //     MoveObject moveObject = spawnedObjectInstance.GetComponent<MoveObject>();
+        //     if (moveObject != null)
+        //     {
+        //         moveObject.PauseMovement(pause);
+        //     }
 
-            SelfDestruct selfDestruct = spawnedObjectInstance.GetComponent<SelfDestruct>();
-            if (selfDestruct != null)
-            {
-                selfDestruct.SetPaused(pause);
-            }
-        }
+        //     SelfDestruct selfDestruct = spawnedObjectInstance.GetComponent<SelfDestruct>();
+        //     if (selfDestruct != null)
+        //     {
+        //         selfDestruct.SetPaused(pause);
+        //     }
+        // }
     }
 
     public void AddBounceDelay(float delay)
     {
+        // This method still adds a delay to the next spawn.
+        // The previous logic affecting spawned object movement is removed.
         spawnTimer += delay;
         if (spawnTimer < 0f)
         {
@@ -235,22 +251,23 @@ public class ObjectSpawner : MonoBehaviour
         // Adjust spawnX to be the center of the safe object
         safeObjectSpawnX += safeObjectHalfWidth;
 
-
-        Vector3 spawnPosition = new Vector3(safeObjectSpawnX, objectSpawner.transform.position.y + safeObjectYOffset, 0f);
+        // Spawn at the calculated X, and the spawner's Y (plus offset)
+        Vector3 spawnPosition = new Vector3(safeObjectSpawnX, transform.position.y + safeObjectYOffset, 0f);
         GameObject safeInstance = Instantiate(safeObjectPrefab, spawnPosition, Quaternion.identity);
         safeObjectSpawned = true;
 
         Debug.Log("Safe Object Spawned: " + safeObjectPrefab.name + " at " + spawnPosition + " (last obstacle right X: " + lastSpawnedRegularObjectRightX + ") at time: " + Time.time);
 
-        MoveObject moveObject = safeInstance.GetComponent<MoveObject>();
-        if (moveObject != null && levelManager != null)
-        {
-            moveObject.SetSpeed(levelManager.objectSpeed);
-        }
-        else if (moveObject == null)
-        {
-            Debug.LogWarning("Spawned Safe Object " + safeObjectPrefab.name + " does not have a MoveObject script.");
-        }
+        // REMOVED: No longer setting speed on MoveObject for the Safe Object.
+        // MoveObject moveObject = safeInstance.GetComponent<MoveObject>();
+        // if (moveObject != null && levelManager != null)
+        // {
+        //     moveObject.SetSpeed(levelManager.objectSpeed);
+        // }
+        // else if (moveObject == null)
+        // {
+        //     Debug.LogWarning("Spawned Safe Object " + safeObjectPrefab.name + " does not have a MoveObject script (expected for stationary objects).");
+        // }
     }
 
     public void ResetSpawner()
@@ -258,6 +275,6 @@ public class ObjectSpawner : MonoBehaviour
         safeObjectSpawned = false;
         spawnTimer = 0f;
         Pause = false;
-        lastSpawnedRegularObjectRightX = 0f; // Reset this on game restart
+        lastSpawnedRegularObjectRightX = transform.position.x; // Reset to current spawner X on restart
     }
 }

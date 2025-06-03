@@ -24,16 +24,17 @@ public class CloudSpawner : MonoBehaviour
     [Tooltip("Maximum Y offset from the spawner's Y position for cloud spawning.")]
     [SerializeField] private float maxYOffset = 2f;
 
-    [Header("Cloud Movement Speed")]
-    [Tooltip("The normal speed at which clouds move. This is the master base speed for ALL clouds.")]
-    [SerializeField] private float baseCloudMoveSpeed = 1.0f; // This is your normal speed
-
     [Tooltip("Multiplier for cloud speed when other game objects are unpaused (e.g., 1.5 for 50% faster).")]
-    [SerializeField] private float fastCloudSpeedMultiplier = 1.5f; // How much faster they go
+    [SerializeField] private float fastCloudSpeedMultiplier = 1.15f; // How much faster they go
 
     // This property holds the speed that CloudMovement scripts will actually use.
     public float CurrentCloudSpeed { get; private set; }
 
+    // NEW: Add a public Pause property to control the spawner's own forward movement.
+    [HideInInspector] // Hide in inspector as it's controlled by other scripts
+    public bool Pause { get; set; } = false; // Default to not paused
+
+    [SerializeField] private LevelManager levelManager;
     private GameManager gameManager;
     private Coroutine spawnRoutine;
 
@@ -47,9 +48,6 @@ public class CloudSpawner : MonoBehaviour
         {
             Destroy(gameObject);
         }
-
-        // Initialize current speed to the base speed when the game starts.
-        CurrentCloudSpeed = baseCloudMoveSpeed;
     }
 
     void Start()
@@ -67,7 +65,43 @@ public class CloudSpawner : MonoBehaviour
             return;
         }
 
+        if (levelManager == null)
+        {
+            levelManager = FindObjectOfType<LevelManager>();
+            if (levelManager == null)
+            {
+                Debug.LogError("LevelManager not found in the scene! CloudSpawner cannot function properly.");
+                enabled = false;
+                return;
+            }
+        }
+        else
+        {
+            // Initialize current speed to the base speed when the game starts.
+            CurrentCloudSpeed = levelManager.baseCloudMoveSpeed;
+        }
+
+        // Start the spawning routine. Its internal logic will *not* be affected by this script's 'Pause' flag,
+        // ensuring clouds always spawn if the game isn't over.
         spawnRoutine = StartCoroutine(SpawnCloudsRoutine());
+    }
+
+    void FixedUpdate()
+    {
+        // Only move the spawner's position if not paused and game is not over.
+        if (!Pause && gameManager != null && !gameManager.IsGameOver())
+        {
+            // The CloudSpawner should follow the player's forward speed.
+            // We'll get the player's forwardSpeed from FlyBehavior.
+            if (FlyBehavior.instance != null)
+            {
+                transform.Translate(Vector2.right * FlyBehavior.instance.forwardSpeed * Time.fixedDeltaTime);
+            }
+            else
+            {
+                Debug.LogWarning("FlyBehavior instance not found! CloudSpawner cannot follow player forward speed.");
+            }
+        }
     }
 
     private IEnumerator SpawnCloudsRoutine()
@@ -77,54 +111,60 @@ public class CloudSpawner : MonoBehaviour
             float currentDelay = Random.Range(minSpawnDelay, maxSpawnDelay);
             yield return new WaitForSeconds(currentDelay);
 
+            // The spawning of clouds should ONLY stop if the game is over.
+            // It should NOT be affected by the 'Pause' flag of the spawner itself,
+            // as clouds should always continue to appear.
             if (gameManager != null && gameManager.IsGameOver())
             {
-                yield return null;
-                continue;
+                yield break; // Stop the coroutine if game is over
             }
 
             GameObject cloudToSpawn = cloudPrefabs[Random.Range(0, cloudPrefabs.Length)];
 
+            // Spawn position is relative to the spawner's current position.
             Vector3 spawnPosition = new Vector3(
                 transform.position.x + spawnXOffset,
                 transform.position.y + Random.Range(minYOffset, maxYOffset),
                 0
             );
 
-            GameObject newCloud = Instantiate(cloudToSpawn, spawnPosition, Quaternion.identity);
-            // CloudMovement will now fetch speed from CloudSpawner.instance.CurrentCloudSpeed in its Update()
+            Instantiate(cloudToSpawn, spawnPosition, Quaternion.identity);
         }
     }
 
     /// <summary>
     /// Sets the cloud speed to either the base speed or the boosted speed.
+    /// This directly modifies CurrentCloudSpeed, which CloudMovement scripts should read.
     /// </summary>
     /// <param name="boosted">True for faster speed, false for normal speed.</param>
     public void SetCloudSpeedBoost(bool boosted)
     {
         if (boosted)
         {
-            CurrentCloudSpeed = baseCloudMoveSpeed * fastCloudSpeedMultiplier;
-            Debug.Log("Clouds are now moving faster!");
+            CurrentCloudSpeed = levelManager.baseCloudMoveSpeed * fastCloudSpeedMultiplier;
+            // Debug.Log("Clouds are now moving faster! CurrentCloudSpeed: " + CurrentCloudSpeed);
         }
         else
         {
-            CurrentCloudSpeed = baseCloudMoveSpeed;
-            Debug.Log("Clouds returned to normal speed.");
+            CurrentCloudSpeed = levelManager.baseCloudMoveSpeed;
+            // Debug.Log("Clouds returned to normal speed. CurrentCloudSpeed: " + CurrentCloudSpeed);
         }
     }
 
+    // You can keep these if you still need external control, but 'Pause' handles positional stopping.
+    // The SpawnCloudsRoutine itself now only cares about GameManager.IsGameOver() for stopping.
     public void StopSpawning()
     {
         if (spawnRoutine != null)
         {
             StopCoroutine(spawnRoutine);
+            spawnRoutine = null; // Set to null so StartSpawning can re-start it
         }
     }
 
     public void StartSpawning()
     {
-        if (spawnRoutine == null)
+        if (spawnRoutine == null) // Only start if not already running
         {
             spawnRoutine = StartCoroutine(SpawnCloudsRoutine());
         }
