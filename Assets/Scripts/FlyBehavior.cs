@@ -1,6 +1,7 @@
 using UnityEngine;
 using UnityEngine.InputSystem;
-using System.Collections; // Required for Coroutines (still needed for HandleObstacleCollision)
+using System.Collections;
+using TMPro; // Required for Coroutines (still needed for HandleObstacleCollision)
 
 public class FlyBehavior : MonoBehaviour
 {
@@ -435,6 +436,18 @@ public class FlyBehavior : MonoBehaviour
         if (GameManager.instance != null)
         {
             GameManager.instance.GameOver(); // Call Game Over (GameManager handles the delay for the screen)
+            if (animator.GetBool("isElectricuted"))
+            {
+                GameManager.instance.GameOverReasonCanvas.GetComponentInChildren<TextMeshProUGUI>().SetText("You were electricuted!"); // Set the reason text
+            }
+            else if (animator.GetBool("hitDangerousObstacle"))
+            {
+                GameManager.instance.GameOverReasonCanvas.GetComponentInChildren<TextMeshProUGUI>().SetText("You smacked into a dangerous object"); // Set the reason text
+            }
+            else
+            {
+                GameManager.instance.GameOverReasonCanvas.GetComponentInChildren<TextMeshProUGUI>().SetText("You didn't make it!"); // Default reason text
+            }
         }
         else
         {

@@ -1,4 +1,5 @@
 using System.Collections;
+using TMPro;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
@@ -15,6 +16,9 @@ public class GameManager : MonoBehaviour
     [SerializeField]
     private GameObject winCanvas; // Reference to the Win UI Canvas/GameObject
 
+    [SerializeField]
+    public GameObject GameOverReasonCanvas;
+
     [Header("Screen Delay Settings")]
     [Tooltip("Delay in seconds before showing the Game Over or Win screen.")]
     [SerializeField]
@@ -28,6 +32,10 @@ public class GameManager : MonoBehaviour
 
     // Private variable to track pause state
     private bool isGamePausedInternal = false;
+
+    // NEW: Score and Death Count variables
+    private int _currentScore = 0;
+    private int _deathsCount = 0;
 
     private void Awake()
     {
@@ -82,6 +90,8 @@ public class GameManager : MonoBehaviour
         isGameOver = false;
         isGameWon = false;
         isGamePausedInternal = false; // Game is unpaused when starting
+
+        ResetGameStats(); // NEW: Reset score and deaths at game start
     }
 
     public void GameOver()
@@ -92,6 +102,23 @@ public class GameManager : MonoBehaviour
         isGameOver = true;
         isGameWon = false; // Ensure win state is false
         isGamePausedInternal = true; // Game is logically paused
+
+        if (GameOverReasonCanvas != null)
+        {
+            GameOverReasonCanvas.SetActive(true); // Hide the game over reason canvas if it exists
+        }
+
+        // NEW: Record replay data on Game Over
+        if (ReplayManager.Instance != null)
+        {
+            GameObject player = GameObject.FindWithTag("Player"); // Assuming player has "Player" tag
+            Vector3 playerPos = player != null ? player.transform.position : Vector3.zero;
+            ReplayManager.Instance.RecordSafePointReached(playerPos, _currentScore, _deathsCount);
+        }
+        else
+        {
+            Debug.LogWarning("ReplayManager not found. Game Over data will not be recorded.");
+        }
 
         // Start the Coroutine to handle the delay and then show the game over screen
         StartCoroutine(ShowEndGameScreenAfterDelay(gameOverCanvas));
@@ -108,6 +135,24 @@ public class GameManager : MonoBehaviour
         isGamePausedInternal = true; // Game is logically paused
 
         UIManager.instance.StopTimer(); // Stop timer on win
+
+        if (GameOverReasonCanvas != null)
+        {
+            GameOverReasonCanvas.SetActive(true); // Hide the game over reason canvas if it exists
+            GameOverReasonCanvas.GetComponentInChildren<TextMeshProUGUI>().SetText("You made it to safety!"); // Set win message
+        }
+
+        // NEW: Record replay data on Win
+        if (ReplayManager.Instance != null)
+        {
+            GameObject player = GameObject.FindWithTag("Player"); // Assuming player has "Player" tag
+            Vector3 playerPos = player != null ? player.transform.position : Vector3.zero;
+            ReplayManager.Instance.RecordSafePointReached(playerPos, _currentScore, _deathsCount);
+        }
+        else
+        {
+            Debug.LogWarning("ReplayManager not found. Win data will not be recorded.");
+        }
 
         // Start the Coroutine to handle the delay and then show the win screen
         StartCoroutine(ShowEndGameScreenAfterDelay(winCanvas));
@@ -126,6 +171,7 @@ public class GameManager : MonoBehaviour
         Debug.Log($"Displaying {screenToShow.name}.");
         gameMenuCanvas.SetActive(true); // Always show the main game menu canvas if it acts as a container
         gameOverCanvas.SetActive(false); // Hide both initially
+
         if (winCanvas != null)
         {
             winCanvas.SetActive(false);
@@ -153,6 +199,8 @@ public class GameManager : MonoBehaviour
         isGameOver = false;
         isGameWon = false;
         isGamePausedInternal = false;
+
+        ResetGameStats(); // NEW: Reset score and deaths at game restart
 
         FlyBehavior.instance.EnablePlayerInput(); // Re-enable player input if applicable
 
@@ -206,5 +254,40 @@ public class GameManager : MonoBehaviour
     public bool IsGamePaused()
     {
         return isGamePausedInternal;
+    }
+
+    // NEW: Methods for Score and Deaths
+    public void AddScore(int amount)
+    {
+        _currentScore += amount;
+        // You might have UIManager.instance.UpdateScoreDisplay(_currentScore); here
+        Debug.Log($"Score: {_currentScore}");
+    }
+
+    public int GetScore()
+    {
+        return _currentScore;
+    }
+
+    public void PlayerDied()
+    {
+        _deathsCount++;
+        // You might have UIManager.instance.UpdateDeathsDisplay(_deathsCount); here
+        Debug.Log($"Deaths: {_deathsCount}");
+        // Add logic for player respawn or other death handling here
+    }
+
+    public int GetDeaths()
+    {
+        return _deathsCount;
+    }
+
+    // Method to reset score and deaths
+    public void ResetGameStats()
+    {
+        _currentScore = 0;
+        _deathsCount = 0;
+        // You might also want to reset UI displays here
+        Debug.Log("Game stats reset.");
     }
 }

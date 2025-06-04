@@ -1,11 +1,21 @@
 using UnityEngine;
 using Random = UnityEngine.Random; // Explicitly use UnityEngine.Random
 
+// Add this serializable class here, outside the ObjectSpawner class definition
+// This allows you to pair a GameObject prefab with a specific vertical offset
+[System.Serializable]
+public class SpawnableObject
+{
+    public GameObject prefab;
+    [Tooltip("Adjusts the vertical position of this specific prefab relative to the spawner's calculated Y. Use this to visually align objects.")]
+    public float verticalOffset = 0f; // Default to no offset
+}
+
 public class ObjectSpawner : MonoBehaviour
 {
-    [Tooltip("Array of prefabs to spawn randomly.")]
+    [Tooltip("Array of prefabs to spawn randomly, each with its own vertical offset setting.")]
     [SerializeField]
-    private GameObject[] prefabsToSpawn;
+    private SpawnableObject[] prefabsToSpawn; // CHANGED: Now an array of SpawnableObject
 
     [Header("Spawn Timer Settings")]
     [SerializeField]
@@ -14,10 +24,8 @@ public class ObjectSpawner : MonoBehaviour
     public float maxSpawnInterval;
 
     [Header("Object Spawn Settings")]
-    // REMOVED: public GameObject objectSpawner; // This is now THIS GameObject's transform
-
     [SerializeField]
-    private float heightRange = 0.45f; // Range for random vertical offset when spawning
+    private float heightRange = 0.45f; // Range for random vertical offset when spawning (this is the RANDOM range)
     [SerializeField]
     private float selfDestructTime = 15f; // Time before the spawned object self-destructs
 
@@ -46,7 +54,7 @@ public class ObjectSpawner : MonoBehaviour
     private ProgressTracker progressTracker; // Reference to the new ProgressTracker
     private WeatherManager weatherManager; // NEW: Reference to WeatherManager
 
-    // NEW: Variable to track the rightmost X position of the last spawned regular object
+    // Variable to track the rightmost X position of the last spawned regular object
     private float lastSpawnedRegularObjectRightX = 0f;
 
     private void Start()
@@ -118,17 +126,27 @@ public class ObjectSpawner : MonoBehaviour
         if (prefabsToSpawn != null && prefabsToSpawn.Length > 0)
         {
             int randomIndex = Random.Range(0, prefabsToSpawn.Length);
-            GameObject prefabToInstantiate = prefabsToSpawn[randomIndex];
+            // Get the selected SpawnableObject entry (which contains both the prefab and its offset)
+            SpawnableObject selectedSpawnable = prefabsToSpawn[randomIndex];
+            GameObject prefabToInstantiate = selectedSpawnable.prefab; // Extract the actual GameObject prefab
+
+            if (prefabToInstantiate == null)
+            {
+                Debug.LogWarning($"Prefab at index {randomIndex} in 'Prefabs To Spawn' array is null. Skipping this spawn.");
+                return;
+            }
 
             float randomVerticalOffset = Random.Range(-heightRange, heightRange);
-            // Spawn position is now relative to this spawner's current X and a random Y
-            Vector3 spawnPosition = new Vector3(transform.position.x, transform.position.y, 0f) + new Vector3(0f, randomVerticalOffset, 0f);
+            // Calculate spawn position: base Y + random range + specific prefab's custom vertical offset
+            Vector3 spawnPosition = new Vector3(
+                transform.position.x,
+                transform.position.y + randomVerticalOffset + selectedSpawnable.verticalOffset, // ADDED: selectedSpawnable.verticalOffset
+                0f
+            );
 
             spawnedObjectInstance = Instantiate(prefabToInstantiate, spawnPosition, Quaternion.identity);
 
             // Calculate and store the rightmost X position of this newly spawned regular object
-            // This assumes the object has a Collider2D and its pivot is roughly centered.
-            // If the pivot is not centered, you might need to adjust bounds.extents.x or add a specific offset.
             Collider2D spawnedCollider = spawnedObjectInstance.GetComponent<Collider2D>();
             if (spawnedCollider != null)
             {
@@ -138,9 +156,7 @@ public class ObjectSpawner : MonoBehaviour
             {
                 // Fallback if no collider, or if you know the typical width of your obstacles
                 Debug.LogWarning("Spawned object " + prefabToInstantiate.name + " has no Collider2D. Cannot accurately determine its right edge for safe zone spacing. Using approximate.");
-                // A very rough estimate based on the prefab's local position + a standard width.
-                // You might need to adjust '0.5f' based on your object's typical size.
-                lastSpawnedRegularObjectRightX = spawnedObjectInstance.transform.position.x + 0.5f;
+                lastSpawnedRegularObjectRightX = spawnedObjectInstance.transform.position.x + 0.5f; // A very rough estimate
             }
 
             if (progressTracker != null)
@@ -150,20 +166,15 @@ public class ObjectSpawner : MonoBehaviour
 
             Debug.Log("Spawned: " + prefabToInstantiate.name + " at " + spawnPosition + " at time: " + Time.time);
 
-            // REMOVED: No longer setting speed on MoveObject, as objects are stationary.
-            // MoveObject moveObject = spawnedObjectInstance.GetComponent<MoveObject>();
-            // if (moveObject != null && levelManager != null)
-            // {
-            //     moveObject.SetSpeed(levelManager.objectSpeed);
-            // }
-            // else if (moveObject == null)
-            // {
-            //     Debug.LogWarning("Spawned object " + prefabToInstantiate.name + " does not have a MoveObject script (expected for stationary objects).");
-            // }
-            // else if (levelManager == null)
-            // {
-            //     Debug.LogError("LevelManager is null in ObjectSpawner, cannot set object speed.");
-            // }
+            // Record the spawned object's initial data for replay
+            if (ReplayManager.Instance != null)
+            {
+                ReplayManager.Instance.RecordSpawnedObject(prefabToInstantiate.name, spawnPosition);
+            }
+            else
+            {
+                Debug.LogWarning("ReplayManager not found. Object spawning will not be recorded.");
+            }
 
             SelfDestruct selfDestruct = spawnedObjectInstance.GetComponent<SelfDestruct>();
             if (selfDestruct != null && selfDestructTime > 0)
@@ -189,27 +200,11 @@ public class ObjectSpawner : MonoBehaviour
     public void PauseSpawner(bool pause)
     {
         Pause = pause;
-        // REMOVED: No longer pausing individual spawned objects via MoveObject, as they are stationary.
-        // if (spawnedObjectInstance != null)
-        // {
-        //     MoveObject moveObject = spawnedObjectInstance.GetComponent<MoveObject>();
-        //     if (moveObject != null)
-        //     {
-        //         moveObject.PauseMovement(pause);
-        //     }
-
-        //     SelfDestruct selfDestruct = spawnedObjectInstance.GetComponent<SelfDestruct>();
-        //     if (selfDestruct != null)
-        //     {
-        //         selfDestruct.SetPaused(pause);
-        //     }
-        // }
     }
 
     public void AddBounceDelay(float delay)
     {
         // This method still adds a delay to the next spawn.
-        // The previous logic affecting spawned object movement is removed.
         spawnTimer += delay;
         if (spawnTimer < 0f)
         {
@@ -231,11 +226,9 @@ public class ObjectSpawner : MonoBehaviour
         }
 
         // Calculate the target X position for the Safe Object
-        // It should be 'minSafeObjectSpawnDistance' away from the right edge of the last regular obstacle.
         float safeObjectSpawnX = lastSpawnedRegularObjectRightX + minSafeObjectSpawnDistance;
 
         // Get the width of the safe object to properly align its left edge.
-        // Assuming the safeObjectPrefab has a Collider2D and its pivot is centered.
         float safeObjectHalfWidth = 0f;
         Collider2D safePrefabCollider = safeObjectPrefab.GetComponent<Collider2D>();
         if (safePrefabCollider != null)
@@ -248,26 +241,20 @@ public class ObjectSpawner : MonoBehaviour
             safeObjectHalfWidth = 0.5f; // Fallback estimate
         }
 
-        // Adjust spawnX to be the center of the safe object
         safeObjectSpawnX += safeObjectHalfWidth;
 
-        // Spawn at the calculated X, and the spawner's Y (plus offset)
+        // Spawn at the calculated X, and the spawner's Y (plus its own offset)
         Vector3 spawnPosition = new Vector3(safeObjectSpawnX, transform.position.y + safeObjectYOffset, 0f);
         GameObject safeInstance = Instantiate(safeObjectPrefab, spawnPosition, Quaternion.identity);
         safeObjectSpawned = true;
 
         Debug.Log("Safe Object Spawned: " + safeObjectPrefab.name + " at " + spawnPosition + " (last obstacle right X: " + lastSpawnedRegularObjectRightX + ") at time: " + Time.time);
 
-        // REMOVED: No longer setting speed on MoveObject for the Safe Object.
-        // MoveObject moveObject = safeInstance.GetComponent<MoveObject>();
-        // if (moveObject != null && levelManager != null)
-        // {
-        //     moveObject.SetSpeed(levelManager.objectSpeed);
-        // }
-        // else if (moveObject == null)
-        // {
-        //     Debug.LogWarning("Spawned Safe Object " + safeObjectPrefab.name + " does not have a MoveObject script (expected for stationary objects).");
-        // }
+        SelfDestruct safeSelfDestruct = safeInstance.GetComponent<SelfDestruct>();
+        if (safeSelfDestruct != null && selfDestructTime > 0)
+        {
+            safeSelfDestruct.SetLifeTime(selfDestructTime);
+        }
     }
 
     public void ResetSpawner()

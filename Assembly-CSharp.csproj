@@ -67,13 +67,17 @@
     <Compile Include="Assets\Scripts\FlyBehavior.cs" />
     <Compile Include="Assets\Scripts\BackgroundScroller.cs" />
     <Compile Include="Assets\Scripts\AudioManager.cs" />
+    <Compile Include="Assets\Scripts\ReplayManager.cs" />
     <Compile Include="Assets\Scripts\UIManager.cs" />
     <Compile Include="Assets\Scripts\DangerousObstacle.cs" />
     <Compile Include="Assets\Scripts\CloudMovement.cs" />
     <Compile Include="Assets\Scripts\ObjectSpawner.cs" />
+    <Compile Include="Assets\Scripts\ScriptableObject\ReplayData.cs" />
     <Compile Include="Assets\Scripts\ProgressTracker.cs" />
     <Compile Include="Assets\Scripts\Audio_Player.cs" />
     <Compile Include="Assets\Scripts\Proceed.cs" />
+    <Compile Include="Assets\Scripts\ReplayDataStructures.cs" />
+    <Compile Include="Assets\Scripts\RainController.cs" />
     <Compile Include="Assets\Scripts\WeatherManager.cs" />
     <Compile Include="Assets\Scripts\CameraOrientationZoom.cs" />
     <Compile Include="Assets\Scripts\LevelManager.cs" />
