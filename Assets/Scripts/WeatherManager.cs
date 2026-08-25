@@ -82,6 +82,13 @@ public class WeatherManager : MonoBehaviour
     [SerializeField]
     private float lightningYOffset = 0f; // You can set a default here, like 0.5f or 1.0f
 
+    [Header("Lightning Dynamic Tracking Settings")]
+    [Tooltip("X-offset for the safe lightning bolt relative to player X (negative values keep it behind the player).")]
+    [SerializeField] private float safeLightningXOffset = -3.0f;
+
+    [Tooltip("X-offset for the player strike lightning bolt relative to player X.")]
+    [SerializeField] private float playerStrikeXOffset = 0f;
+
     [Header("Lightning Flicker Settings")]
     [Tooltip("Minimum number of times the lightning bolt will flicker.")]
     [SerializeField]
@@ -326,6 +333,36 @@ public class WeatherManager : MonoBehaviour
         }
     }
 
+    void LateUpdate()
+    {
+        if (!_weatherIsUsed || playerGameObject == null) return;
+
+        Vector3 playerPos = playerGameObject.transform.position;
+
+        // Safe Zone / Initial Lightning Tracking
+        if (initialAndSafeZoneLightningObject != null && initialAndSafeZoneLightningObject.activeInHierarchy)
+        {
+            // Follow horizontal position slightly behind the player, keeping its original Y and Z
+            Vector3 currentPos = initialAndSafeZoneLightningObject.transform.position;
+            initialAndSafeZoneLightningObject.transform.position = new Vector3(
+                playerPos.x + safeLightningXOffset,
+                currentPos.y,
+                currentPos.z
+            );
+        }
+
+        // Direct Player Strike Lightning Tracking
+        if (currentActivePlayerLightningBolt != null && currentActivePlayerLightningBolt.activeInHierarchy)
+        {
+            // Follow player horizontally and match vertical height with lightningYOffset so the tip strikes the player
+            Vector3 currentPos = currentActivePlayerLightningBolt.transform.position;
+            currentActivePlayerLightningBolt.transform.position = new Vector3(
+                playerPos.x + playerStrikeXOffset,
+                playerPos.y + lightningYOffset,
+                currentPos.z
+            );
+        }
+    }
     private void StartCountdown()
     {
         initialCountdownDuration = Random.Range(minCountdownTime, maxCountdownTime);
@@ -447,7 +484,13 @@ public class WeatherManager : MonoBehaviour
         if (playerGameObject != null)
         {
             Vector3 playerPos = playerGameObject.transform.position;
-            lightningContainerParent.transform.position = new Vector3(lightningContainerParent.transform.position.x, playerPos.y + lightningYOffset, lightningContainerParent.transform.position.z);
+
+            // Align container X & Y to player before activation
+            lightningContainerParent.transform.position = new Vector3(
+                playerPos.x + (lightningBoltVisual == initialAndSafeZoneLightningObject ? safeLightningXOffset : playerStrikeXOffset),
+                playerPos.y + lightningYOffset,
+                lightningContainerParent.transform.position.z
+            );
         }
         else
         {

@@ -424,7 +424,7 @@ public class FlyBehavior : MonoBehaviour
         }
         animator.SetBool("isFlying", false); // Ensure flying animation is off
 
-        if (obstacleObject.GetComponent<DangerousObstacle>().GetObstacleType() == DangerousObstacle.DangersousObstacleType.Electrical)
+        if (obstacleObject.GetComponent<DangerousObstacle>().GetObstacleType() == DangerousObstacle.DangersousObstacleType.Electrical || obstacleObject.GetComponent<DangerousObstacle>().GetObstacleType() == DangerousObstacle.DangersousObstacleType.Lightning)
         {
             animator.SetBool("isElectricuted", true); // Trigger shock animation
         }
@@ -433,16 +433,17 @@ public class FlyBehavior : MonoBehaviour
             animator.SetBool("hitDangerousObstacle", true); // Trigger death animation
         }
 
+        Debug.Log("Start custom end screen message");
         if (GameManager.instance != null)
         {
             GameManager.instance.GameOver(); // Call Game Over (GameManager handles the delay for the screen)
-            if (animator.GetBool("isElectricuted"))
+            Debug.Log("Start custom end screen message: GameManager found.");
+
+            if (obstacleObject != null)
             {
-                GameManager.instance.GameOverReasonCanvas.GetComponentInChildren<TextMeshProUGUI>().SetText("You were electricuted!"); // Set the reason text
-            }
-            else if (animator.GetBool("hitDangerousObstacle"))
-            {
-                GameManager.instance.GameOverReasonCanvas.GetComponentInChildren<TextMeshProUGUI>().SetText("You smacked into a dangerous object"); // Set the reason text
+                Debug.Log("Start custom end screen message: Obstacle found. " + obstacleObject.name);
+                GameManager.instance.GameOverReasonCanvas.GetComponentInChildren<TextMeshProUGUI>().SetText(obstacleObject.GetComponent<DangerousObstacle>().GetGameOverReason()); // Set the reason text from the obstacle
+                Debug.Log("obstacle: " + obstacleObject.name + "obstacleObject.GetComponent<DangerousObstacle>().GetGameOverReason() = " + obstacleObject.GetComponent<DangerousObstacle>().GetGameOverReason());
             }
             else
             {

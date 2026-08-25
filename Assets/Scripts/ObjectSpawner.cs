@@ -9,6 +9,8 @@ public class SpawnableObject
     public GameObject prefab;
     [Tooltip("Adjusts the vertical position of this specific prefab relative to the spawner's calculated Y. Use this to visually align objects.")]
     public float verticalOffset = 0f; // Default to no offset
+    [Tooltip("Adjusts the height randomized variation of this specific prefab relative to the spawner's calculated Y.")]
+    public float heightRange = 0.45f; // Range for random vertical offset when spawning (this is the RANDOM range)
 }
 
 public class ObjectSpawner : MonoBehaviour
@@ -24,8 +26,6 @@ public class ObjectSpawner : MonoBehaviour
     public float maxSpawnInterval;
 
     [Header("Object Spawn Settings")]
-    [SerializeField]
-    private float heightRange = 0.45f; // Range for random vertical offset when spawning (this is the RANDOM range)
     [SerializeField]
     private float selfDestructTime = 15f; // Time before the spawned object self-destructs
 
@@ -136,7 +136,7 @@ public class ObjectSpawner : MonoBehaviour
                 return;
             }
 
-            float randomVerticalOffset = Random.Range(-heightRange, heightRange);
+            float randomVerticalOffset = Random.Range(-selectedSpawnable.heightRange, selectedSpawnable.heightRange);
             // Calculate spawn position: base Y + random range + specific prefab's custom vertical offset
             Vector3 spawnPosition = new Vector3(
                 transform.position.x,

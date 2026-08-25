@@ -7,11 +7,14 @@ public class DangerousObstacle : MonoBehaviour
         Electrical,
         Falling,
         Solid,
-        Spikes
+        Spikes, 
+        Lightning
     }
 
     [SerializeField]
     private DangersousObstacleType obstacleType = DangersousObstacleType.Solid;
+    [SerializeField]
+    private string gameOverReason = "You hit a dangerous obstacle!";
 
     public DangerousObstacle()
     {
@@ -22,5 +25,10 @@ public class DangerousObstacle : MonoBehaviour
     public DangersousObstacleType GetObstacleType()
     {
         return obstacleType;
+    }
+
+    public string GetGameOverReason()
+    {
+        return gameOverReason;
     }
 }
